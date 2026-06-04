@@ -24,7 +24,7 @@
 | 16 | [LINQ for filtering, grouping, and calculating in C#](#16-linq-for-filtering-grouping-and-calculating-in-c) | In-memory repositories, LINQ queries, filtering, projection, ordering, grouping, aggregation, and inventory metrics | Available |
 | 17 | To be defined | Dependency injection | Coming soon |
 | 18 | [How `FileManager` works in C#](#18-how-filemanager-works-in-c) | File I/O, `System.IO`, `File`, `Directory`, `Path`, line-based operations, directory creation, and search patterns | Available |
-| 19 | To be defined | CLI application architecture | Coming soon |
+| 19 | [JSON serialization in .NET: saving and restoring objects](#19-json-serialization-in-net-saving-and-restoring-objects) | `System.Text.Json`, serialization, deserialization, JSON options, enum converters, backups, and persistence | Available |
 | 20 | To be defined | Validation and console user experience | Coming soon |
 | 21 | To be defined | Packaging and distribution | Coming soon |
 | 22 | To be defined | Microsoft and .NET best practices | Coming soon |
@@ -3648,6 +3648,381 @@ This class now supports writing, reading, appending, checking existence, deletin
 | `WriteAllLines` | Writes a collection as separate lines. |
 | Search pattern | A file-matching expression such as `*.txt`. |
 | Persistence | Saving data so it remains available after the program ends. |
+
+## 19. JSON serialization in .NET: saving and restoring objects
+
+Converting in-memory objects into persistent files, and then restoring them without losing information, is a core skill in modern applications. In .NET, `System.Text.Json` provides a native, fast, and complete solution for working with JSON.
+
+JSON is widely used for APIs, configuration files, local storage, logs, integrations, and communication between systems.
+
+### Summary
+
+Serialization means converting an object that exists in memory into text that can be stored on disk.
+
+Deserialization is the opposite process: reading that text and reconstructing the original object in memory.
+
+```text
+Object in memory -> JSON text -> File on disk
+File on disk -> JSON text -> Object in memory
+```
+
+For the inventory project, JSON persistence lets the application save products and load them again the next time the program runs.
+
+### Why use `System.Text.Json`
+
+`System.Text.Json` is built into modern .NET. That means the project can serialize and deserialize JSON without adding external dependencies.
+
+Benefits:
+
+- Native .NET support.
+- Good performance.
+- Strong integration with C# types.
+- Configurable naming policies.
+- Support for enum converters.
+- Works well for files, APIs, and DTOs.
+
+### Creating `JsonInventoryStorage`
+
+The storage class belongs in the infrastructure layer because it deals with persistence details:
+
+```text
+src/
+  InventoryApp/
+    Infrastructure/
+      JsonInventoryStorage.cs
+```
+
+Its responsibility is focused: save and load inventory data as JSON, while delegating raw file operations to `FileManager`.
+
+```csharp
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace InventoryApp.Infrastructure;
+
+public class JsonInventoryStorage
+{
+    private readonly FileManager _fileManager;
+    private readonly JsonSerializerOptions _options;
+
+    public JsonInventoryStorage()
+    {
+        _fileManager = new FileManager();
+        _options = CreateOptions();
+    }
+}
+```
+
+The class uses two private read-only fields:
+
+| Field | Purpose |
+|---|---|
+| `_fileManager` | Reads and writes JSON files. |
+| `_options` | Stores JSON serialization settings. |
+
+A constructor does not return a value and must have the same name as the class.
+
+### Configuring serialization options
+
+`JsonSerializerOptions` controls how JSON is produced and read.
+
+```csharp
+private static JsonSerializerOptions CreateOptions()
+{
+    JsonSerializerOptions options = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    options.Converters.Add(new JsonStringEnumConverter());
+
+    return options;
+}
+```
+
+Important settings:
+
+| Option | Purpose |
+|---|---|
+| `WriteIndented = true` | Formats JSON with indentation and line breaks for readability. |
+| `PropertyNamingPolicy = JsonNamingPolicy.CamelCase` | Writes property names using camel case. |
+| `JsonStringEnumConverter` | Serializes enum values as strings instead of numbers. |
+
+Without `JsonStringEnumConverter`, enum values are written as numbers. With it, values such as `ProductStatus.Active` appear as readable text like `"active"` or `"Active"`, depending on configuration.
+
+### Saving products
+
+The `Save` method converts a list of products into JSON and writes it to a file:
+
+```csharp
+public void Save(IEnumerable<Product> products, string path)
+{
+    string json = JsonSerializer.Serialize(products, _options);
+    _fileManager.Write(path, json);
+}
+```
+
+Flow:
+
+1. Receive products in memory.
+2. Serialize them into JSON text.
+3. Write the JSON to the destination path.
+
+Example output:
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Laptop",
+    "price": 1200,
+    "quantity": 3,
+    "category": "Electronics",
+    "status": "Active"
+  }
+]
+```
+
+### Loading products
+
+The `Load` method reads JSON from a file and converts it back into products:
+
+```csharp
+public List<Product> Load(string path)
+{
+    if (!_fileManager.Exists(path))
+    {
+        return new List<Product>();
+    }
+
+    string json = _fileManager.Read(path);
+
+    return JsonSerializer.Deserialize<List<Product>>(json, _options)
+        ?? new List<Product>();
+}
+```
+
+Important details:
+
+- If the file does not exist, the method returns an empty list.
+- If deserialization returns `null`, the method also returns an empty list.
+- The caller receives usable product data instead of raw JSON text.
+
+### Creating backups
+
+Before overwriting important data, a storage class can create a backup file.
+
+```csharp
+public string? CreateBackup(string path)
+{
+    if (!_fileManager.Exists(path))
+    {
+        return null;
+    }
+
+    string? directory = Path.GetDirectoryName(path);
+    string fileName = Path.GetFileNameWithoutExtension(path);
+    string extension = Path.GetExtension(path);
+    string timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+
+    string backupFileName = $"{fileName}.backup.{timestamp}{extension}";
+    string backupPath = string.IsNullOrWhiteSpace(directory)
+        ? backupFileName
+        : Path.Combine(directory, backupFileName);
+
+    File.Copy(path, backupPath);
+
+    return backupPath;
+}
+```
+
+Backup flow:
+
+1. Check whether the original file exists.
+2. Extract directory, file name, and extension.
+3. Generate a timestamp.
+4. Build a backup path.
+5. Copy the original file.
+6. Return the backup path.
+
+If the source file does not exist, returning `null` is reasonable because there is nothing to back up.
+
+### Why use `Path`
+
+`Path` helps build file paths safely across operating systems.
+
+```csharp
+string backupPath = Path.Combine(directory, backupFileName);
+```
+
+This is better than manually concatenating strings because Windows, Linux, and macOS use path separators differently.
+
+### Testing JSON storage from `Program.cs`
+
+Example:
+
+```csharp
+using InventoryApp.Infrastructure;
+
+JsonInventoryStorage storage = new();
+
+List<Product> products = new()
+{
+    new Product
+    {
+        Id = 1,
+        Name = "Laptop",
+        Price = 1200M,
+        Quantity = 3,
+        Category = ProductCategory.Electronics,
+        Status = ProductStatus.Active,
+        RegisteredAt = DateTime.Now
+    },
+    new Product
+    {
+        Id = 2,
+        Name = "T-Shirt",
+        Price = 19.99M,
+        Quantity = 50,
+        Category = ProductCategory.Clothing,
+        Status = ProductStatus.Active,
+        RegisteredAt = DateTime.Now
+    }
+};
+
+string path = "inventory_test.json";
+
+storage.CreateBackup(path);
+storage.Save(products, path);
+
+List<Product> restored = storage.Load(path);
+
+foreach (Product product in restored)
+{
+    Console.WriteLine($"{product.Id} - {product.Name} - {product.Price} - {product.Quantity}");
+}
+```
+
+This test confirms that products can be saved, restored, and displayed again.
+
+### What happens when the model changes
+
+JSON persistence is flexible. If the C# model later adds a property that does not exist in an older JSON file, deserialization usually does not fail. The new property receives its default value.
+
+Example:
+
+```csharp
+public string Color { get; set; } = string.Empty;
+```
+
+If older JSON files do not include `color`, the property becomes `string.Empty` when loaded.
+
+This makes JSON useful while a project is evolving, but it also means you should think carefully about defaults and migration rules as the application grows.
+
+### Complete storage example
+
+```csharp
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace InventoryApp.Infrastructure;
+
+public class JsonInventoryStorage
+{
+    private readonly FileManager _fileManager;
+    private readonly JsonSerializerOptions _options;
+
+    public JsonInventoryStorage()
+    {
+        _fileManager = new FileManager();
+        _options = CreateOptions();
+    }
+
+    public void Save(IEnumerable<Product> products, string path)
+    {
+        string json = JsonSerializer.Serialize(products, _options);
+        _fileManager.Write(path, json);
+    }
+
+    public List<Product> Load(string path)
+    {
+        if (!_fileManager.Exists(path))
+        {
+            return new List<Product>();
+        }
+
+        string json = _fileManager.Read(path);
+
+        return JsonSerializer.Deserialize<List<Product>>(json, _options)
+            ?? new List<Product>();
+    }
+
+    public string? CreateBackup(string path)
+    {
+        if (!_fileManager.Exists(path))
+        {
+            return null;
+        }
+
+        string? directory = Path.GetDirectoryName(path);
+        string fileName = Path.GetFileNameWithoutExtension(path);
+        string extension = Path.GetExtension(path);
+        string timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+
+        string backupFileName = $"{fileName}.backup.{timestamp}{extension}";
+        string backupPath = string.IsNullOrWhiteSpace(directory)
+            ? backupFileName
+            : Path.Combine(directory, backupFileName);
+
+        File.Copy(path, backupPath);
+
+        return backupPath;
+    }
+
+    private static JsonSerializerOptions CreateOptions()
+    {
+        JsonSerializerOptions options = new()
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        options.Converters.Add(new JsonStringEnumConverter());
+
+        return options;
+    }
+}
+```
+
+### Key ideas
+
+- Serialization converts objects into text that can be stored.
+- Deserialization reconstructs objects from stored text.
+- `System.Text.Json` is the native JSON library in modern .NET.
+- `JsonSerializerOptions` controls formatting and naming behavior.
+- `WriteIndented` makes JSON readable.
+- `JsonNamingPolicy.CamelCase` writes property names in camel case.
+- `JsonStringEnumConverter` stores enums as readable strings.
+- `FileManager` can handle low-level file reads and writes.
+- Backups protect data before overwriting files.
+- `Path.Combine` is safer than manual path concatenation.
+- Older JSON can still load when new model properties have default values.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Serialization | Converting an in-memory object into text or bytes. |
+| Deserialization | Reconstructing an object from stored text or bytes. |
+| JSON | A text format commonly used for data exchange and persistence. |
+| `System.Text.Json` | .NET namespace for JSON serialization and deserialization. |
+| `JsonSerializer` | Type used to serialize and deserialize JSON. |
+| `JsonSerializerOptions` | Configuration object for JSON behavior. |
+| `WriteIndented` | Option that formats JSON for readability. |
+| Camel case | Naming style where the first word starts lowercase, such as `productName`. |
+| `JsonStringEnumConverter` | Converter that writes enums as strings instead of numbers. |
+| Backup | A copy of a file created before changing or overwriting it. |
 
 ## Repository Goal
 
