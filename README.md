@@ -15,7 +15,7 @@
 | 07 | [How arguments work in C#](#07-how-arguments-work-in-c) | Command-line arguments, `args`, `switch`, stdin, stdout, interactive mode, functions, and exit codes | Available |
 | 08 | [Safe conversion with `TryParse` in C#](#08-safe-conversion-with-tryparse-in-c) | Data types, user input, `Parse` vs `TryParse`, `out`, decimals, inventory calculations, and ternary expressions | Available |
 | 09 | [`null` in C#: validating user input](#09-null-in-c-validating-user-input) | Null safety, nullable strings, `Trim`, `ToLowerInvariant`, default values, loops, and inventory commands | Available |
-| 10 | To be defined | Error handling and exceptions | Coming soon |
+| 10 | [Exit codes and null handling in C#](#10-exit-codes-and-null-handling-in-c) | STDIN, STDOUT, exit codes, CLI arguments, primitive types, `decimal`, `TryParse`, and null-safe operators | Available |
 | 11 | To be defined | Files, streams, and serialization | Coming soon |
 | 12 | To be defined | JSON and application configuration | Coming soon |
 | 13 | To be defined | Automated testing | Coming soon |
@@ -1465,6 +1465,230 @@ The key result is that invalid or missing input no longer surprises the program.
 | `IsNullOrEmpty()` | Checks whether a string is null or empty. |
 | `IsNullOrWhiteSpace()` | Checks whether a string is null, empty, or only whitespace. |
 | Normalization | The process of converting input into a consistent format before processing it. |
+
+## 10. Exit codes and null handling in C#
+
+Mastering user input, primitive data types, command-line arguments, and null-safe code is essential for building reliable C# applications. This lesson consolidates the core ideas needed to make a command-line project behave predictably in real environments.
+
+### Summary
+
+A console application communicates with the operating system through input, output, and completion status:
+
+- **STDIN** receives user input.
+- **STDOUT** prints program output.
+- **Exit codes** tell the operating system whether the program finished successfully or failed.
+
+Together with safe parsing and null handling, these concepts make your CLI tools easier to automate, test, and maintain.
+
+### STDIN, STDOUT, and exit codes
+
+When a C# console program runs, it communicates through standard channels:
+
+| Channel | Meaning | C# example |
+|---|---|---|
+| STDIN | Standard input. Text entered by the user or piped from another process. | `Console.ReadLine()` |
+| STDOUT | Standard output. Text printed by the program. | `Console.WriteLine()` |
+| Exit code | Numeric status returned when the program ends. | `Environment.Exit(0)` |
+
+Exit code conventions:
+
+| Exit code | Meaning |
+|---:|---|
+| `0` | Successful execution. |
+| `1` | General error. |
+| `2` | Incorrect usage, such as invalid arguments. |
+
+These codes are important because scripts and automation tools can use them to decide whether the next step should continue.
+
+### Command-line arguments with `dotnet run`
+
+When running a project with `dotnet run`, use `--` to separate arguments for the .NET CLI from arguments for your application:
+
+```bash
+dotnet run -- add laptop
+```
+
+In this example, the application receives:
+
+| Index | Value |
+|---|---|
+| `args[0]` | `add` |
+| `args[1]` | `laptop` |
+
+The double dash is only a separator. It is not included in the `args` array.
+
+This distinction matters when designing CLI applications because your code should process only the arguments intended for the program.
+
+### Primitive types for the inventory project
+
+The most important primitive types in this module are:
+
+| Type | Use case |
+|---|---|
+| `int` | Whole numbers, such as quantities or counts. |
+| `decimal` | Money and exact base-10 calculations. |
+| `string` | Text, names, commands, and descriptions. |
+| `bool` | True/false values, such as loop control flags. |
+
+Example:
+
+```csharp
+int quantity = 5;
+decimal price = 25.99M;
+string productName = "Laptop";
+bool isRunning = true;
+```
+
+### Why `decimal` is the right type for money
+
+For product prices, prefer `decimal` instead of `double` or `float`.
+
+`double` and `float` use binary floating-point representation. That can introduce rounding errors in financial calculations. `decimal` is designed for base-10 precision, which makes it a better fit for money.
+
+```csharp
+decimal unitPrice = 19.99M;
+decimal total = unitPrice * 3;
+
+Console.WriteLine($"Total: {total}");
+```
+
+The `M` suffix tells the compiler that the literal is a `decimal`.
+
+### Safe string-to-number conversion
+
+User input arrives as text. To convert it safely, use `TryParse`:
+
+```csharp
+Console.Write("Enter quantity: ");
+string? input = Console.ReadLine();
+
+if (int.TryParse(input, out var quantity))
+{
+    Console.WriteLine($"Quantity: {quantity}");
+}
+else
+{
+    Console.WriteLine("Invalid quantity.");
+    Environment.Exit(2);
+}
+```
+
+`TryParse` is safer than `Parse` or `Convert.ToInt32` for user input because it does not throw an exception when conversion fails. Instead, it returns `false`.
+
+### Avoiding null reference exceptions
+
+Null reference exceptions happen when code tries to use a value that does not exist. C# provides operators that make defensive code shorter and clearer.
+
+#### Null-coalescing operator
+
+The `??` operator returns the left value when it is not null. Otherwise, it returns the fallback value on the right.
+
+```csharp
+string? inputName = Console.ReadLine();
+string name = inputName ?? "anonymous";
+```
+
+If `inputName` is `null`, `name` becomes `"anonymous"`.
+
+#### Null-conditional operator
+
+The `?.` operator accesses a property or method only if the value is not null.
+
+```csharp
+string? input = Console.ReadLine();
+int length = input?.Length ?? 0;
+
+Console.WriteLine($"Length: {length}");
+```
+
+If `input` is `null`, `.Length` is not accessed and the fallback value `0` is used.
+
+### Current `Program.cs` structure
+
+At this point, the console project can follow a clean structure:
+
+```text
+Program.cs
+  1. System variables and metadata
+  2. Startup banner
+  3. Argument handling: --help and --version
+  4. Future variables or placeholders
+  5. User input with null-safe validation
+  6. Helper functions such as ShowBanner and ShowHelp
+```
+
+Example outline:
+
+```csharp
+ShowBanner();
+
+if (args.Length > 0)
+{
+    switch (args[0].ToLowerInvariant())
+    {
+        case "--help":
+            ShowHelp();
+            Environment.Exit(0);
+            break;
+
+        case "--version":
+            Console.WriteLine("InventoryApp version 1.0.0");
+            Environment.Exit(0);
+            break;
+
+        default:
+            Console.WriteLine("Invalid usage. Use --help.");
+            Environment.Exit(2);
+            break;
+    }
+}
+
+Console.Write("Enter your name: ");
+string? input = Console.ReadLine();
+string name = input?.Trim() ?? "anonymous";
+
+Console.WriteLine($"Hello, {name}.");
+
+static void ShowBanner()
+{
+    Console.WriteLine("Inventory Management System");
+}
+
+static void ShowHelp()
+{
+    Console.WriteLine("Available commands: --help, --version");
+}
+```
+
+This organization keeps the application readable as it grows. The top-level flow remains easy to follow, while helper functions keep repeated behavior in one place.
+
+### Key ideas
+
+- STDIN is input coming into the program.
+- STDOUT is output printed by the program.
+- Exit codes communicate the final status of the process.
+- `dotnet run -- add laptop` passes `add` and `laptop` to `args`.
+- `int`, `decimal`, `string`, and `bool` are essential primitive types for this project.
+- Use `decimal` for money because it avoids binary floating-point surprises.
+- Use `TryParse` for user input because invalid values should not crash the app.
+- Use `??` to provide fallback values when something is null.
+- Use `?.` to safely access members only when an object exists.
+- A clean `Program.cs` structure makes the project easier to maintain.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| STDIN | Standard input received by the program. |
+| STDOUT | Standard output printed by the program. |
+| Exit code | A numeric status returned to the operating system when the program ends. |
+| Primitive type | A basic built-in type such as `int`, `decimal`, `string`, or `bool`. |
+| Floating point | A numeric representation used by `float` and `double`, useful but not ideal for money. |
+| `decimal` | A precise base-10 numeric type commonly used for financial values. |
+| `TryParse` | A safe conversion method that returns `true` or `false`. |
+| Null reference exception | An error caused by trying to use a value that is null. |
+| `??` | Null-coalescing operator for fallback values. |
+| `?.` | Null-conditional operator for safe member access. |
 
 ## Repository Goal
 
