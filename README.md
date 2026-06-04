@@ -7,7 +7,7 @@
 | # | Lesson | Technical Focus | Status |
 |---:|---|---|---|
 | 01 | [How the .NET engine runs your C# code](#01-how-the-net-engine-runs-your-c-code) | Compilation, IL, CLR, JIT, and native execution | Available |
-| 02 | To be defined | .NET platform fundamentals | Coming soon |
+| 02 | [How .NET runs code across three operating systems](#02-how-net-runs-code-across-three-operating-systems) | Cross-platform execution, ecosystem components, IL, JIT, Native AOT, and adoption | Available |
 | 03 | To be defined | Modern C# and developer productivity | Coming soon |
 | 04 | To be defined | CLI, SDK, and professional workflow | Coming soon |
 | 05 | To be defined | Project and solution structure | Coming soon |
@@ -106,6 +106,125 @@ C# provides a modern and expressive syntax, but its real power appears when you 
 | CLR | The runtime that executes and manages .NET applications. |
 | JIT | The compiler that converts IL into machine code during execution. |
 | Garbage Collection | The automatic memory management system used by .NET. |
+
+## 02. How .NET runs code across three operating systems
+
+One of the strongest promises of .NET is simple but powerful: write your code once and run it on Windows, Linux, and macOS without changing the application logic. That promise is possible because .NET is more than a language. It is a full development platform with a runtime, libraries, tooling, project templates, compilers, and deployment models designed for modern software.
+
+Understanding this architecture helps you choose the right tool for each job and avoid a common beginner mistake: mixing up .NET, C#, ASP.NET Core, and Visual Studio as if they were the same thing.
+
+### Summary
+
+.NET started as a Windows-only platform and evolved into a cross-platform, open-source ecosystem. Today, it supports web applications, APIs, desktop apps, mobile apps, cloud services, games, machine learning, background workers, and command-line tools.
+
+The key idea is that C# code is compiled into **Intermediate Language (IL)** instead of being compiled directly for one processor or operating system. At runtime, the **CLR** and **JIT compiler** translate that IL into native machine code for the system where the application is running.
+
+```text
+One C# codebase -> IL -> CLR on Windows/Linux/macOS -> Native execution
+```
+
+### .NET, C#, ASP.NET Core, and Visual Studio
+
+These names often appear together, but they have different roles:
+
+| Name | Role |
+|---|---|
+| .NET | The full development platform: runtime, libraries, SDK, tools, and application models. |
+| C# | The main programming language used to write instructions for .NET applications. |
+| ASP.NET Core | A specialized framework inside .NET for building web apps, APIs, and services. |
+| Visual Studio | A professional IDE that helps you write, debug, test, and manage .NET projects. |
+
+You can write C# without Visual Studio. You can use .NET without ASP.NET Core. You can also build .NET applications from the terminal with the SDK and the `dotnet` CLI.
+
+### The core components of .NET
+
+.NET is built on three major foundations:
+
+- **CLR (Common Language Runtime):** the execution engine that runs your code, manages memory, handles security, and coordinates execution threads.
+- **BCL (Base Class Library):** a large set of prebuilt APIs for files, strings, collections, networking, HTTP requests, dates, JSON, databases, cryptography, and more.
+- **SDK (Software Development Kit):** the compiler, command-line tools, templates, build system, and project creation workflow.
+
+Together, these pieces give you a productive environment for building real applications without reinventing basic infrastructure every time.
+
+### Languages supported by .NET
+
+.NET supports multiple languages, but they are not equally common for new projects:
+
+| Language | Best fit |
+|---|---|
+| C# | The primary language for most modern .NET development. |
+| F# | Functional programming, data-heavy workloads, and specialized domain modeling. |
+| Visual Basic | Mostly used for maintaining older business applications. |
+
+If you are starting today, **C# is the default choice**. It has the largest ecosystem, strongest community support, and broadest demand in professional .NET roles.
+
+### IL and JIT compilation
+
+When you compile C# code, it does not immediately become processor-specific instructions. Instead, the compiler produces **Intermediate Language (IL)**. You can think of IL as a platform-neutral representation of your program.
+
+When the application runs, the CLR reads that IL and the JIT compiler translates it into native machine code method by method, right when the code is needed. Because JIT compilation happens on the actual machine running the application, .NET can optimize execution for that specific hardware.
+
+This model is one reason .NET can support multiple operating systems while still producing efficient native execution.
+
+### Native AOT
+
+JIT compilation has a small startup cost because some code is compiled when the application begins running. For most web, desktop, and business applications, that cost is minor. But startup time matters more in scenarios such as:
+
+- Cloud microservices that need very fast cold starts.
+- Serverless workloads.
+- Command-line tools that should open instantly.
+- Small utilities distributed as standalone executables.
+
+**Native AOT (Ahead-of-Time)**, available in modern .NET, compiles the application directly into native machine code before deployment. The trade-off is important: you can get faster startup and a self-contained executable, but you may lose some runtime flexibility and end up with a larger final binary.
+
+### Evolution of .NET
+
+.NET has changed significantly over time:
+
+| Era | What changed |
+|---|---|
+| .NET Framework | Released in 2002 as a Windows-only development platform. |
+| .NET Core | Rebuilt as open source and cross-platform, with support for Windows, Linux, and macOS. |
+| .NET 5 and later | Unified the platform under the single name `.NET`. |
+
+Modern .NET releases follow a predictable support model:
+
+- **LTS (Long-Term Support):** even-numbered versions with three years of support.
+- **STS (Standard-Term Support):** odd-numbered versions with shorter support windows.
+
+For production systems, especially in enterprise environments, LTS versions are usually the safest choice.
+
+### .NET in the real world
+
+.NET is used by large-scale companies and products because it is mature, performant, and well supported:
+
+- Stack Overflow has historically relied on C# and .NET to handle massive web traffic.
+- Microsoft Teams uses .NET across many APIs and services.
+- Many Fortune 500 companies use .NET for internal systems, cloud services, and business applications.
+- Unity uses C# as its main scripting language for game development.
+- .NET MAUI allows teams to build mobile and desktop apps from a shared codebase.
+- ML.NET brings machine learning workflows into the .NET ecosystem.
+
+The platform is valuable because it covers many software domains with one consistent language, runtime, and tooling ecosystem.
+
+### Key ideas
+
+- .NET is the platform; C# is the main language; ASP.NET Core is for web; Visual Studio is an IDE.
+- The CLR, BCL, and SDK are core building blocks of the .NET ecosystem.
+- C# is compiled into IL, then translated to native code by the JIT compiler.
+- Native AOT can improve startup time by compiling to native code before deployment.
+- Modern .NET is open source, cross-platform, and widely used in professional software engineering.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| ASP.NET Core | The .NET framework for building web applications, APIs, and services. |
+| BCL | The Base Class Library: reusable APIs included with .NET. |
+| SDK | The tools required to build, run, test, and publish .NET applications. |
+| Native AOT | A deployment model that compiles .NET code to native machine code ahead of time. |
+| LTS | Long-Term Support release, recommended for production stability. |
+| STS | Standard-Term Support release, useful for adopting newer features sooner. |
 
 ## Repository Goal
 
