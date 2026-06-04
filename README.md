@@ -17,7 +17,7 @@
 | 09 | [`null` in C#: validating user input](#09-null-in-c-validating-user-input) | Null safety, nullable strings, `Trim`, `ToLowerInvariant`, default values, loops, and inventory commands | Available |
 | 10 | [Exit codes and null handling in C#](#10-exit-codes-and-null-handling-in-c) | STDIN, STDOUT, exit codes, CLI arguments, primitive types, `decimal`, `TryParse`, and null-safe operators | Available |
 | 11 | [Anatomy of a method in C#](#11-anatomy-of-a-method-in-c) | Return types, method names, parameters, method bodies, `void`, scope, `return`, and command processing | Available |
-| 12 | To be defined | JSON and application configuration | Coming soon |
+| 12 | [Classes, enums, and records in C#](#12-classes-enums-and-records-in-c) | Domain modeling, classes, properties, calculated properties, enums, records, immutability, and value comparison | Available |
 | 13 | To be defined | Automated testing | Coming soon |
 | 14 | To be defined | Debugging and diagnostics | Coming soon |
 | 15 | To be defined | Garbage Collection and performance | Coming soon |
@@ -1973,6 +1973,249 @@ The order is:
 | Scope | The region of code where a variable exists and can be accessed. |
 | Local variable | A variable declared inside a method or block. |
 | Responsibility | The specific job a method or piece of code should handle. |
+
+## 12. Classes, enums, and records in C#
+
+As a project grows, managing disconnected variables becomes impractical. Robust software groups related data into well-defined structures. In C#, classes, enums, and records help model real concepts clearly and safely.
+
+In the inventory project, these tools can represent products, product categories, product states, and suppliers.
+
+### Summary
+
+A product is not just a name, a price, or a quantity by itself. It is a group of related values that belong together. Instead of scattering those values across separate variables, C# lets you model them with a `class`.
+
+Enums help restrict values to a known set, such as product categories or product status. Records are useful for data that should not change after creation, such as supplier information.
+
+### What a class is
+
+A class is a blueprint for creating objects. It defines what data an object has and, when needed, what behavior it provides.
+
+Instead of writing separate variables like this:
+
+```csharp
+string name = "Laptop";
+decimal price = 1200M;
+int quantity = 5;
+```
+
+You can group those values into a `Product` class:
+
+```csharp
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public int Quantity { get; set; }
+    public DateTime RegisteredAt { get; set; }
+    public ProductCategory Category { get; set; }
+    public ProductStatus Status { get; set; }
+
+    public decimal TotalValue => Price * Quantity;
+
+    public override string ToString()
+    {
+        return $"{Id} - {Name} | {Category} | {Status} | Qty: {Quantity} | Total: {TotalValue}";
+    }
+}
+```
+
+This gives the product one unified structure that is easier to pass around, validate, print, and extend.
+
+### Properties, `get`, and `set`
+
+Properties expose data on a class:
+
+```csharp
+public string Name { get; set; } = string.Empty;
+```
+
+`get` reads the value. `set` changes the value.
+
+Not every property needs both. Some properties are calculated from other values:
+
+```csharp
+public decimal TotalValue => Price * Quantity;
+```
+
+`TotalValue` does not store a separate value. It calculates the result whenever it is accessed. This keeps the value accurate even when `Price` or `Quantity` changes.
+
+### Overriding `ToString`
+
+`ToString()` defines how an object is represented as text. By using `override`, you can customize the output:
+
+```csharp
+public override string ToString()
+{
+    return $"{Name} - {Price:C} x {Quantity}";
+}
+```
+
+This is useful when printing products in the console.
+
+### Using `DateTime`
+
+`DateTime` represents dates and times in C#:
+
+```csharp
+public DateTime RegisteredAt { get; set; } = DateTime.Now;
+```
+
+For an inventory product, it can store when the product was registered. As the project grows, it is worth learning how `DateTime`, time zones, and formatting work because dates are common sources of subtle bugs.
+
+### Modeling fixed values with enums
+
+An enum is a named set of constants. It is useful when a value must come from a known list.
+
+Example product category:
+
+```csharp
+public enum ProductCategory
+{
+    Electronics,
+    Home,
+    Clothing,
+    Food,
+    Tools,
+    Office,
+    Other
+}
+```
+
+Example product status:
+
+```csharp
+public enum ProductStatus
+{
+    Active,
+    Inactive,
+    Discontinued
+}
+```
+
+Enums are safer than plain strings because the compiler validates the values.
+
+With strings, this mistake is accepted:
+
+```csharp
+string category = "electrnics";
+```
+
+With enums, invalid values are caught earlier:
+
+```csharp
+ProductCategory category = ProductCategory.Electronics;
+```
+
+To access an enum value, use dot notation:
+
+```csharp
+ProductCategory category = ProductCategory.Home;
+ProductStatus status = ProductStatus.Active;
+```
+
+### XML comments
+
+As a project grows, XML comments can document public types and members:
+
+```csharp
+/// <summary>
+/// Represents a product stored in the inventory.
+/// </summary>
+public class Product
+{
+}
+```
+
+This improves readability and can be used by tooling to generate documentation or show helpful descriptions in editors.
+
+### When to use records
+
+Some data should not change after it is created. For that kind of data, records are a strong fit.
+
+Example supplier:
+
+```csharp
+public record Supplier(
+    int Id,
+    string Name,
+    string Email,
+    string Phone
+);
+```
+
+Records are concise and designed for immutable data models.
+
+### Class vs record
+
+The main differences are mutability and comparison behavior:
+
+| Type | Best for | Default comparison |
+|---|---|---|
+| `class` | Data that can change over time. | Reference comparison. |
+| `record` | Data that represents a stable value. | Value comparison. |
+
+A `Product` works well as a class because its price, quantity, category, or status may change.
+
+A `Supplier` works well as a record because supplier identity data is often treated as a stable value once created.
+
+Example of value comparison with records:
+
+```csharp
+Supplier first = new(1, "Acme", "contact@acme.com", "555-0100");
+Supplier second = new(1, "Acme", "contact@acme.com", "555-0100");
+
+Console.WriteLine(first == second); // True
+```
+
+With regular classes, two different instances are usually considered different unless they reference the same object or custom equality is implemented.
+
+### Suggested model folder
+
+A clean inventory project can organize models like this:
+
+```text
+src/
+  InventoryApp/
+    Models/
+      Product.cs
+      ProductCategory.cs
+      ProductStatus.cs
+      Supplier.cs
+```
+
+This keeps domain types easy to find and makes the project structure match the concepts in the application.
+
+### Key ideas
+
+- A class is a blueprint for creating objects.
+- Classes group related data and behavior into one structure.
+- `get` reads a property value; `set` updates it.
+- Calculated properties can use expression syntax such as `=> Price * Quantity`.
+- `DateTime` represents date and time values.
+- Enums define a fixed set of valid values.
+- Enums are safer than strings for categories and states.
+- Records are useful for data that should remain stable after creation.
+- Classes compare by reference by default; records compare by value by default.
+- Organizing models in a dedicated folder keeps the project easier to maintain.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Class | A blueprint for creating objects with data and behavior. |
+| Object | An instance created from a class. |
+| Property | A member that exposes data on a class or record. |
+| `get` | Reads a property value. |
+| `set` | Updates a property value. |
+| Calculated property | A property whose value is derived from other values. |
+| `DateTime` | A C# type for representing date and time. |
+| Enum | A named set of constant values. |
+| Record | A data-focused type with value-based equality. |
+| Immutability | The idea that data should not change after creation. |
+| Reference comparison | Checks whether two variables point to the same object in memory. |
+| Value comparison | Checks whether two values contain the same data. |
 
 ## Repository Goal
 
