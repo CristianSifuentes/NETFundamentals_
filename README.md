@@ -12,7 +12,7 @@
 | 04 | [.NET CLI commands for organizing projects](#04-net-cli-commands-for-organizing-projects) | CLI commands, project structure, `.csproj` metadata, build output, and execution order | Available |
 | 05 | [`bin` and `obj` folders in .NET: what they are and when to ignore them](#05-bin-and-obj-folders-in-net-what-they-are-and-when-to-ignore-them) | Build artifacts, `.gitignore`, Git workflow, GitHub setup, and `.gitkeep` | Available |
 | 06 | [Module checkpoint: quiz and base project](#06-module-checkpoint-quiz-and-base-project) | Module review, .NET ecosystem quiz, code ordering, namespaces, CLI commands, and inventory project checklist | Available |
-| 07 | To be defined | Object-oriented programming in C# | Coming soon |
+| 07 | [How arguments work in C#](#07-how-arguments-work-in-c) | Command-line arguments, `args`, `switch`, stdin, stdout, interactive mode, functions, and exit codes | Available |
 | 08 | To be defined | Interfaces, abstractions, and contracts | Coming soon |
 | 09 | To be defined | Collections, generics, and LINQ | Coming soon |
 | 10 | To be defined | Error handling and exceptions | Coming soon |
@@ -892,6 +892,207 @@ This creates a clean base before adding real inventory features in later modules
 | Base project | The initial clean version of an application before adding major features. |
 | Code ordering | The practice of placing code in an order that is readable and valid for compilation. |
 | Checklist | A structured list used to verify that required tasks are complete. |
+
+## 07. How arguments work in C#
+
+Turning a static program into an interactive one is a major step toward building real tools. In this lesson, the inventory console app starts accepting command-line arguments, reading user input, writing output clearly, and returning proper exit codes for scripts and automation.
+
+### Summary
+
+Command-line programs receive information from the terminal in two main ways:
+
+- Through **arguments**, passed after the command.
+- Through **standard input**, typed by the user while the program is running.
+
+C# console applications can process both. Arguments arrive in the `args` array, while interactive input can be read with `Console.ReadLine()`.
+
+### Command-line arguments in .NET
+
+When you run a program from the terminal, you can pass extra information after the command. That extra information is called command-line arguments.
+
+With `dotnet run`, use `--` to separate arguments meant for the .NET CLI from arguments meant for your application:
+
+```bash
+dotnet run -- add laptop 500
+```
+
+Everything before `--` belongs to `dotnet`. Everything after `--` is passed to your program through `args`.
+
+In this example:
+
+| Index | Value |
+|---|---|
+| `args[0]` | `add` |
+| `args[1]` | `laptop` |
+| `args[2]` | `500` |
+
+`args` is an array of strings. Each space-separated value becomes an item in that array.
+
+### Processing arguments with `switch`
+
+A common pattern is to check whether the program received arguments and then evaluate the first argument as the command:
+
+```csharp
+if (args.Length > 0)
+{
+    switch (args[0].ToLowerInvariant())
+    {
+        case "--help":
+            ShowHelp();
+            Environment.Exit(0);
+            break;
+
+        case "--version":
+            Console.WriteLine("InventoryApp version 1.0.0");
+            Environment.Exit(0);
+            break;
+
+        default:
+            Console.WriteLine($"Unknown command: {args[0]}");
+            Console.WriteLine("Use --help to see available commands.");
+            Environment.Exit(2);
+            break;
+    }
+}
+```
+
+This structure scales well. Every new command can become another `case` inside the `switch`.
+
+### Why exit codes matter
+
+An exit code is a number returned by a program to the operating system when it finishes. Scripts and automation tools use exit codes to decide whether the next step should continue.
+
+Common exit codes:
+
+| Exit code | Meaning |
+|---:|---|
+| `0` | Success. Everything completed correctly. |
+| `1` | General error. Something failed. |
+| `2` | Incorrect usage. The arguments or command are invalid. |
+
+If the user passes an unknown command, the correct exit code is usually `2`, because the program was used incorrectly. Returning the right code helps other programs understand what happened.
+
+### stdin and stdout
+
+Console applications communicate through standard streams:
+
+| Stream | Meaning | C# API |
+|---|---|---|
+| stdin | Standard input: what the user types. | `Console.ReadLine()` |
+| stdout | Standard output: what the program prints. | `Console.WriteLine()` or `Console.Write()` |
+
+`Console.WriteLine()` prints text and moves to the next line.
+
+```csharp
+Console.WriteLine("Inventory system ready.");
+```
+
+`Console.Write()` prints text without moving to the next line. It is useful for prompts:
+
+```csharp
+Console.Write("Enter a command: ");
+```
+
+### Building interactive mode
+
+If the program receives no arguments, it can enter interactive mode. In this mode, the user types commands while the program is already running.
+
+Example:
+
+```csharp
+ShowBanner();
+
+while (true)
+{
+    Console.Write("Enter a command (or exit to quit): ");
+    string? input = Console.ReadLine();
+
+    if (string.IsNullOrWhiteSpace(input) ||
+        input.ToLowerInvariant() == "exit")
+    {
+        Console.WriteLine("Goodbye.");
+        Environment.Exit(0);
+    }
+
+    Console.WriteLine($"You typed: {input}");
+}
+```
+
+The variable is declared as `string?` because `Console.ReadLine()` can return `null`. The question mark tells the compiler that null is an expected possibility.
+
+### Organizing repeated output with functions
+
+If the program prints the same banner in multiple places, extract that logic into a function:
+
+```csharp
+static void ShowBanner()
+{
+    Console.WriteLine("Inventory Management System");
+    Console.WriteLine("Version: 1.0.0");
+    Console.WriteLine($".NET runtime: {Environment.Version}");
+    Console.WriteLine();
+}
+```
+
+This avoids duplication and reduces coupling. When presentation logic lives in one place, it is easier to update and harder to accidentally make inconsistent.
+
+### A simple command structure
+
+A small but useful console program can support both direct commands and interactive use:
+
+```csharp
+if (args.Length > 0)
+{
+    switch (args[0].ToLowerInvariant())
+    {
+        case "--help":
+            ShowHelp();
+            return;
+
+        case "--version":
+            Console.WriteLine("InventoryApp version 1.0.0");
+            return;
+
+        default:
+            Console.WriteLine($"Unknown command: {args[0]}");
+            Environment.Exit(2);
+            return;
+    }
+}
+
+RunInteractiveMode();
+```
+
+This gives the app two paths:
+
+- Direct command mode when arguments are provided.
+- Interactive mode when no arguments are provided.
+
+### Key ideas
+
+- Command-line arguments let users send data when launching the program.
+- With `dotnet run`, `--` separates .NET CLI arguments from application arguments.
+- `args` is a string array containing the application arguments.
+- A `switch` statement is a clean way to route commands.
+- Exit codes communicate success, failure, or incorrect usage to the operating system.
+- `Console.ReadLine()` reads stdin.
+- `Console.WriteLine()` and `Console.Write()` write to stdout.
+- `string?` is appropriate when a value can be null.
+- Extracting repeated output into functions reduces duplication and coupling.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Argument | A value passed to a program from the command line. |
+| `args` | The string array containing command-line arguments in a C# program. |
+| `switch` | A control statement used to choose behavior based on a value. |
+| stdin | Standard input, usually text entered by the user. |
+| stdout | Standard output, usually text printed by the program. |
+| Exit code | A number returned by a program to describe how it finished. |
+| Interactive mode | A mode where the program keeps running and waits for user input. |
+| Nullable reference | A reference value marked with `?` to show that it may be null. |
+| Coupling | A design problem where pieces of code depend too heavily on each other. |
 
 ## Repository Goal
 
