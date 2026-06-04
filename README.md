@@ -21,9 +21,9 @@
 | 13 | [Guard clauses: early validation in C#](#13-guard-clauses-early-validation-in-c) | Encapsulation, guard clauses, fail fast, private fields, property setters, refactoring, and Factory pattern | Available |
 | 14 | [Checkpoint: validation, Factory, and enums](#14-checkpoint-validation-factory-and-enums) | Module review, `void`, enums, exceptions, records, classes, Factory pattern, and domain model validation | Available |
 | 15 | [`List`, `Dictionary`, and `HashSet` in C#](#15-list-dictionary-and-hashset-in-c) | Collections, ordering, fast lookup, uniqueness, interfaces, repositories, and `IProductRepository` | Available |
-| 16 | To be defined | Async, await, and concurrency | Coming soon |
+| 16 | [LINQ for filtering, grouping, and calculating in C#](#16-linq-for-filtering-grouping-and-calculating-in-c) | In-memory repositories, LINQ queries, filtering, projection, ordering, grouping, aggregation, and inventory metrics | Available |
 | 17 | To be defined | Dependency injection | Coming soon |
-| 18 | To be defined | Logging and observability | Coming soon |
+| 18 | [How `FileManager` works in C#](#18-how-filemanager-works-in-c) | File I/O, `System.IO`, `File`, `Directory`, `Path`, line-based operations, directory creation, and search patterns | Available |
 | 19 | To be defined | CLI application architecture | Coming soon |
 | 20 | To be defined | Validation and console user experience | Coming soon |
 | 21 | To be defined | Packaging and distribution | Coming soon |
@@ -2980,6 +2980,674 @@ The application does not need to know whether the repository uses a `Dictionary`
 | Interface | A contract that defines required members without implementation. |
 | Repository | A component that manages storage and retrieval of domain objects. |
 | Read-only property | A property with `get` but no external `set`. |
+
+## 16. LINQ for filtering, grouping, and calculating in C#
+
+Working with collections becomes much more expressive when you stop manually controlling every loop and start declaring what result you want. That is what LINQ, or Language Integrated Query, brings to C#.
+
+In the inventory project, LINQ can solve real repository needs: searching, filtering, ordering, grouping, and calculating business metrics.
+
+### Summary
+
+LINQ lets you query in-memory collections using readable operators such as `Where`, `Select`, `Any`, `OrderBy`, `GroupBy`, `Sum`, `Average`, and `MaxBy`.
+
+Instead of writing a manual loop for every search, you describe the condition or transformation you need.
+
+```csharp
+IEnumerable<Product> electronics = products
+    .Where(product => product.Category == ProductCategory.Electronics);
+```
+
+The pattern is:
+
+```text
+Data source -> LINQ operator -> condition or selector -> result
+```
+
+### Implementing an in-memory repository
+
+The starting point is `IProductRepository`, the contract that defines available product operations. An in-memory implementation can store products in a private list while the project does not yet use a database.
+
+```csharp
+public class InMemoryProductRepository : IProductRepository
+{
+    private readonly List<Product> _products = new();
+    private int _nextId = 1;
+
+    public int Count => _products.Count;
+
+    public void Add(Product product)
+    {
+        product.Id = _nextId++;
+        _products.Add(product);
+    }
+}
+```
+
+`Add` does not return a value because it modifies the internal collection.
+
+### Getting one product with `FirstOrDefault`
+
+`FirstOrDefault` returns the first item that matches a condition. If no item matches, it returns `null`.
+
+```csharp
+public Product? GetById(int id)
+{
+    return _products.FirstOrDefault(product => product.Id == id);
+}
+```
+
+The return type is `Product?` because the product might not exist.
+
+### Returning all products safely
+
+The repository should protect its internal list from external modification.
+
+```csharp
+public IEnumerable<Product> GetAll()
+{
+    return _products.AsReadOnly();
+}
+```
+
+`AsReadOnly` prevents callers from modifying the internal list directly. Returning `IEnumerable<Product>` keeps the method flexible and avoids exposing unnecessary implementation details.
+
+### Updating products without replacing references
+
+To update a product, first find the existing object. Then update its properties.
+
+```csharp
+public bool Update(Product product)
+{
+    Product? existing = GetById(product.Id);
+
+    if (existing is null)
+    {
+        return false;
+    }
+
+    existing.Name = product.Name;
+    existing.Price = product.Price;
+    existing.Quantity = product.Quantity;
+    existing.Category = product.Category;
+    existing.Status = product.Status;
+
+    return true;
+}
+```
+
+This preserves the existing object reference and updates its state.
+
+### Deleting products
+
+`Remove` deletes the first matching object from the list:
+
+```csharp
+public bool Delete(int id)
+{
+    Product? existing = GetById(id);
+
+    if (existing is null)
+    {
+        return false;
+    }
+
+    return _products.Remove(existing);
+}
+```
+
+Returning `bool` tells the caller whether a product was actually removed.
+
+### Filtering with `Where`
+
+`Where` filters a collection. It is similar to `WHERE` in SQL.
+
+Search by category:
+
+```csharp
+public IEnumerable<Product> SearchByCategory(ProductCategory category)
+{
+    return _products.Where(product => product.Category == category);
+}
+```
+
+Search by name:
+
+```csharp
+public IEnumerable<Product> SearchByName(string text)
+{
+    return _products.Where(product =>
+        product.Name.Contains(text, StringComparison.OrdinalIgnoreCase));
+}
+```
+
+Search by price range:
+
+```csharp
+public IEnumerable<Product> SearchByPriceRange(decimal min, decimal max)
+{
+    return _products.Where(product =>
+        product.Price >= min && product.Price <= max);
+}
+```
+
+The common pattern is always source, condition, filtered result.
+
+### Transforming results with `Select`
+
+`Select` changes the shape of the result.
+
+For example, to return only product names:
+
+```csharp
+public IEnumerable<string> GetNames()
+{
+    return _products.Select(product => product.Name);
+}
+```
+
+This is like selecting one column instead of returning the full object.
+
+### Checking conditions with `Any`
+
+`Any` answers a yes/no question.
+
+```csharp
+public bool HasLowStock()
+{
+    return _products.Any(product => product.Quantity < 5);
+}
+```
+
+`Any` is efficient because it stops as soon as it finds the first matching item.
+
+### Ordering and limiting results
+
+`OrderBy` sorts values in ascending order:
+
+```csharp
+public IEnumerable<Product> GetOrderedByPrice()
+{
+    return _products.OrderBy(product => product.Price);
+}
+```
+
+`OrderByDescending` sorts in descending order, and `Take` limits the result:
+
+```csharp
+public IEnumerable<Product> GetMostExpensive(int count)
+{
+    return _products
+        .OrderByDescending(product => product.Price)
+        .Take(count);
+}
+```
+
+This pattern is useful for top-ten lists, best sellers, or dashboard summaries.
+
+### Grouping with `GroupBy`
+
+`GroupBy` creates groups that share a key.
+
+```csharp
+public IEnumerable<IGrouping<ProductCategory, Product>> GroupByCategory()
+{
+    return _products.GroupBy(product => product.Category);
+}
+```
+
+Each group has:
+
+- A `Key`, such as `ProductCategory.Electronics`.
+- The products that belong to that key.
+
+### Counting by category with `ToDictionary`
+
+You can convert grouped data into a dictionary:
+
+```csharp
+public Dictionary<ProductCategory, int> CountByCategory()
+{
+    return _products
+        .GroupBy(product => product.Category)
+        .ToDictionary(group => group.Key, group => group.Count());
+}
+```
+
+The result maps each category to the number of products in that category.
+
+### Aggregations: `Sum`, `Average`, and `MaxBy`
+
+Use `Sum` to calculate total inventory value:
+
+```csharp
+public decimal GetTotalInventoryValue()
+{
+    return _products.Sum(product => product.Price * product.Quantity);
+}
+```
+
+Use `Average` to calculate average price, but protect against empty lists:
+
+```csharp
+public decimal GetAveragePrice()
+{
+    if (!_products.Any())
+    {
+        return 0M;
+    }
+
+    return _products.Average(product => product.Price);
+}
+```
+
+Use `MaxBy` to get the full product with the highest price:
+
+```csharp
+public Product? GetMostExpensiveProduct()
+{
+    return _products.MaxBy(product => product.Price);
+}
+```
+
+The return type is nullable because the list could be empty.
+
+### Chaining LINQ operators
+
+LINQ becomes powerful when operators are combined.
+
+Example: calculate inventory value by category.
+
+```csharp
+public Dictionary<ProductCategory, decimal> GetValueByCategory()
+{
+    return _products
+        .GroupBy(product => product.Category)
+        .ToDictionary(
+            group => group.Key,
+            group => group.Sum(product => product.Price * product.Quantity));
+}
+```
+
+This groups products by category and calculates the total value inside each group.
+
+### Low-stock queries with default parameters
+
+Default parameters make methods flexible:
+
+```csharp
+public IEnumerable<Product> GetLowStock(int threshold = 5)
+{
+    return _products.Where(product => product.Quantity < threshold);
+}
+```
+
+If the caller does not provide a threshold, the method uses `5`. If another rule is needed, the caller can pass a different value.
+
+```csharp
+IEnumerable<Product> defaultLowStock = repository.GetLowStock();
+IEnumerable<Product> criticalStock = repository.GetLowStock(2);
+```
+
+### Key ideas
+
+- LINQ lets you describe what data you want instead of manually looping through everything.
+- `FirstOrDefault` returns a matching item or `null`.
+- `AsReadOnly` protects internal lists from external modification.
+- `Where` filters data.
+- `Select` transforms data.
+- `Any` checks whether at least one item matches a condition.
+- `OrderBy`, `OrderByDescending`, and `Take` sort and limit results.
+- `GroupBy` organizes data by a shared key.
+- `ToDictionary` converts grouped results into key-value pairs.
+- `Sum`, `Average`, and `MaxBy` calculate useful inventory metrics.
+- Default parameters make query methods more flexible.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| LINQ | Language Integrated Query, a C# feature for querying collections. |
+| Lambda expression | A compact function expression such as `product => product.Price > 100`. |
+| `Where` | Filters a collection by condition. |
+| `Select` | Projects each item into a new shape or value. |
+| `Any` | Returns `true` if at least one item matches. |
+| `OrderBy` | Sorts values in ascending order. |
+| `OrderByDescending` | Sorts values in descending order. |
+| `Take` | Limits how many items are returned. |
+| `GroupBy` | Groups items by a shared key. |
+| `ToDictionary` | Converts data into a dictionary. |
+| Aggregation | A calculation over a collection, such as sum, average, or maximum. |
+| `IEnumerable<T>` | A sequence that can be iterated over. |
+
+## 18. How `FileManager` works in C#
+
+Reading and writing files is an essential skill in professional C# applications. Configuration files, audit logs, exports, imports, and local persistence all depend on reliable file handling.
+
+In this lesson, the project introduces a `FileManager` class that centralizes file operations with `System.IO`.
+
+### Summary
+
+When file operations are scattered throughout the application, duplication grows and maintenance becomes harder. A `FileManager` class keeps all file-related logic in one place.
+
+This follows a simple design idea: `Program.cs` should consume file operations, while `FileManager` should execute them.
+
+The main `System.IO` types used are:
+
+| Type | Purpose |
+|---|---|
+| `File` | Handles file operations such as read, write, append, delete, and exists checks. |
+| `Directory` | Handles folders and subdirectories. |
+| `Path` | Helps build and normalize paths across operating systems. |
+
+### Why centralize file logic
+
+Centralizing file operations gives the project several benefits:
+
+- Less duplicated code.
+- Easier maintenance.
+- One place to change if storage rules evolve.
+- Cleaner `Program.cs`.
+- A clearer separation of responsibilities.
+
+This supports the Single Responsibility Principle: each class should have one main reason to change.
+
+### Creating a `FileManager`
+
+A clean project can place infrastructure code in a dedicated folder:
+
+```text
+src/
+  InventoryApp/
+    Infrastructure/
+      FileManager.cs
+```
+
+Example class outline:
+
+```csharp
+namespace InventoryApp.Infrastructure;
+
+public class FileManager
+{
+    public void Write(string path, string content)
+    {
+        File.WriteAllText(path, content);
+    }
+
+    public string Read(string path)
+    {
+        return File.ReadAllText(path);
+    }
+}
+```
+
+`FileManager` exposes simple methods while `System.IO` performs the actual file operations.
+
+### Writing files with `WriteAllText`
+
+`File.WriteAllText` writes content to a file.
+
+```csharp
+public void Write(string path, string content)
+{
+    File.WriteAllText(path, content);
+}
+```
+
+Behavior:
+
+- If the file does not exist, it creates it.
+- If the file already exists, it overwrites the existing content.
+- It opens, writes, and closes the file automatically.
+
+This is useful for simple save operations where the full file content should be replaced.
+
+### Reading files with `ReadAllText`
+
+`File.ReadAllText` reads the entire file as one string:
+
+```csharp
+public string Read(string path)
+{
+    return File.ReadAllText(path);
+}
+```
+
+This is simple and effective for small or medium files. If the file does not exist, it throws `FileNotFoundException`.
+
+For very large files, prefer line-by-line processing to avoid loading everything into memory at once.
+
+### Appending content
+
+`File.AppendAllText` adds content at the end of an existing file without deleting previous content:
+
+```csharp
+public void Append(string path, string content)
+{
+    File.AppendAllText(path, content);
+}
+```
+
+This is useful for:
+
+- Application logs.
+- Audit records.
+- Activity history.
+- Incremental text output.
+
+### Checking whether a file exists
+
+`File.Exists` returns `true` or `false` without opening the file:
+
+```csharp
+public bool Exists(string path)
+{
+    return File.Exists(path);
+}
+```
+
+Use this before reading a file when missing files are expected:
+
+```csharp
+if (fileManager.Exists("inventory.txt"))
+{
+    string content = fileManager.Read("inventory.txt");
+    Console.WriteLine(content);
+}
+```
+
+### Deleting files
+
+`File.Delete` removes a file:
+
+```csharp
+public void Delete(string path)
+{
+    File.Delete(path);
+}
+```
+
+If the file does not exist, `File.Delete` does not throw an exception. It can still fail for other reasons, such as insufficient permissions.
+
+### Reading and writing lines
+
+Sometimes a file should be treated as lines instead of one large text block.
+
+`File.ReadAllLines` returns an array where each element is one line:
+
+```csharp
+public string[] ReadLines(string path)
+{
+    return File.ReadAllLines(path);
+}
+```
+
+`File.WriteAllLines` receives a collection and writes each item as its own line:
+
+```csharp
+public void WriteLines(string path, IEnumerable<string> lines)
+{
+    File.WriteAllLines(path, lines);
+}
+```
+
+Example:
+
+```csharp
+string[] products =
+{
+    "Laptop",
+    "Mouse",
+    "Keyboard"
+};
+
+fileManager.WriteLines("products.txt", products);
+```
+
+This creates a file where each product appears on a separate line.
+
+### Creating directories
+
+`Directory.CreateDirectory` creates a folder:
+
+```csharp
+public void CreateDirectory(string path)
+{
+    Directory.CreateDirectory(path);
+}
+```
+
+Behavior:
+
+- If the folder already exists, it does not throw.
+- If parent folders do not exist, it creates them too.
+
+For example, creating `data/inventory` also creates `data` if needed.
+
+### Searching files by pattern
+
+`Directory.GetFiles` returns files that match a search pattern:
+
+```csharp
+public string[] GetFiles(string directoryPath, string searchPattern)
+{
+    return Directory.GetFiles(directoryPath, searchPattern);
+}
+```
+
+Examples of search patterns:
+
+| Pattern | Meaning |
+|---|---|
+| `*.txt` | All text files. |
+| `*.json` | All JSON files. |
+| `inventory-*` | Files whose names start with `inventory-`. |
+
+The `*` character means "match anything."
+
+### Using `FileManager` from `Program.cs`
+
+Example:
+
+```csharp
+using InventoryApp.Infrastructure;
+
+FileManager fileManager = new();
+
+fileManager.Write("inventory.txt", "Inventory updated");
+
+string content = fileManager.Read("inventory.txt");
+Console.WriteLine(content);
+```
+
+This confirms that writing and reading work through one centralized abstraction.
+
+### Complete `FileManager` example
+
+```csharp
+namespace InventoryApp.Infrastructure;
+
+public class FileManager
+{
+    public void Write(string path, string content)
+    {
+        File.WriteAllText(path, content);
+    }
+
+    public string Read(string path)
+    {
+        return File.ReadAllText(path);
+    }
+
+    public void Append(string path, string content)
+    {
+        File.AppendAllText(path, content);
+    }
+
+    public bool Exists(string path)
+    {
+        return File.Exists(path);
+    }
+
+    public void Delete(string path)
+    {
+        File.Delete(path);
+    }
+
+    public string[] ReadLines(string path)
+    {
+        return File.ReadAllLines(path);
+    }
+
+    public void WriteLines(string path, IEnumerable<string> lines)
+    {
+        File.WriteAllLines(path, lines);
+    }
+
+    public void CreateDirectory(string path)
+    {
+        Directory.CreateDirectory(path);
+    }
+
+    public string[] GetFiles(string directoryPath, string searchPattern)
+    {
+        return Directory.GetFiles(directoryPath, searchPattern);
+    }
+}
+```
+
+This class now supports writing, reading, appending, checking existence, deleting, line-based work, directory creation, and pattern-based search.
+
+### Key ideas
+
+- File operations should be centralized instead of scattered across the app.
+- `System.IO.File` handles file-level operations.
+- `System.IO.Directory` handles folder operations.
+- `System.IO.Path` helps with cross-platform path handling.
+- `WriteAllText` creates or overwrites a file.
+- `ReadAllText` reads a full file as a string.
+- `AppendAllText` adds content without deleting existing text.
+- `ReadAllLines` returns a line array.
+- `WriteAllLines` writes each item as a separate line.
+- `CreateDirectory` is safe to call even if the directory already exists.
+- `GetFiles` can search with patterns such as `*.txt` or `*.json`.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| `System.IO` | .NET namespace for file and directory operations. |
+| `File` | Static class for working with files. |
+| `Directory` | Static class for working with folders. |
+| `Path` | Static class for building and normalizing file paths. |
+| `WriteAllText` | Writes a full string to a file, replacing existing content. |
+| `ReadAllText` | Reads an entire file as a string. |
+| `AppendAllText` | Adds text to the end of a file. |
+| `ReadAllLines` | Reads a file into an array of lines. |
+| `WriteAllLines` | Writes a collection as separate lines. |
+| Search pattern | A file-matching expression such as `*.txt`. |
+| Persistence | Saving data so it remains available after the program ends. |
 
 ## Repository Goal
 
