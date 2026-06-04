@@ -25,7 +25,7 @@
 | 17 | To be defined | Dependency injection | Coming soon |
 | 18 | [How `FileManager` works in C#](#18-how-filemanager-works-in-c) | File I/O, `System.IO`, `File`, `Directory`, `Path`, line-based operations, directory creation, and search patterns | Available |
 | 19 | [JSON serialization in .NET: saving and restoring objects](#19-json-serialization-in-net-saving-and-restoring-objects) | `System.Text.Json`, serialization, deserialization, JSON options, enum converters, backups, and persistence | Available |
-| 20 | To be defined | Validation and console user experience | Coming soon |
+| 20 | [LINQ and `StringBuilder`: inventory reports in C#](#20-linq-and-stringbuilder-inventory-reports-in-c) | Reporting, `StringBuilder`, LINQ summaries, low-stock alerts, rankings, CSV export, and JSON export | Available |
 | 21 | To be defined | Packaging and distribution | Coming soon |
 | 22 | To be defined | Microsoft and .NET best practices | Coming soon |
 | 23 | To be defined | Basic security and secret management | Coming soon |
@@ -4023,6 +4023,382 @@ public class JsonInventoryStorage
 | Camel case | Naming style where the first word starts lowercase, such as `productName`. |
 | `JsonStringEnumConverter` | Converter that writes enums as strings instead of numbers. |
 | Backup | A copy of a file created before changing or overwriting it. |
+
+## 20. LINQ and `StringBuilder`: inventory reports in C#
+
+Turning data into decisions is one of the most valuable skills in software development. In an inventory system, storing products is not enough. The application should answer useful questions about total value, low-stock products, top performers, and exportable data.
+
+This lesson combines LINQ and `StringBuilder` to build a professional report generator.
+
+### Summary
+
+The `ReportGenerator` class analyzes inventory data and produces:
+
+- Executive summaries.
+- Low-stock alerts.
+- Product rankings.
+- CSV exports.
+- JSON summaries.
+
+LINQ expresses what data should be filtered, grouped, ordered, or calculated. `StringBuilder` builds large strings efficiently, line by line.
+
+### Creating `ReportGenerator`
+
+The report generator belongs in the infrastructure layer because it transforms application data into output formats.
+
+```text
+src/
+  InventoryApp/
+    Infrastructure/
+      ReportGenerator.cs
+```
+
+Useful imports:
+
+```csharp
+using System.Text;
+using System.Text.Json;
+using InventoryApp.Models;
+```
+
+Class structure:
+
+```csharp
+namespace InventoryApp.Infrastructure;
+
+public class ReportGenerator
+{
+    private readonly IEnumerable<Product> _products;
+
+    public ReportGenerator(IEnumerable<Product> products)
+    {
+        _products = products;
+    }
+}
+```
+
+The constructor receives the product collection and stores it in a read-only field. This lets the class generate multiple views of the same data without modifying the inventory.
+
+### Why use `StringBuilder`
+
+Strings are immutable in C#. Repeated concatenation can create many temporary string objects.
+
+`StringBuilder` is better when building multi-line text:
+
+```csharp
+StringBuilder sb = new();
+
+sb.AppendLine("Inventory Report");
+sb.AppendLine("----------------");
+sb.AppendLine($"Generated at: {DateTime.Now}");
+
+return sb.ToString();
+```
+
+Use `AppendLine` to add text with a line break.
+
+### Generating an inventory summary
+
+The summary report can show:
+
+- Total product count.
+- Total inventory value.
+- Product count by category.
+
+```csharp
+public string GenerateSummary()
+{
+    StringBuilder sb = new();
+
+    sb.AppendLine("Inventory Summary");
+    sb.AppendLine("=================");
+    sb.AppendLine($"Total products: {_products.Count()}");
+    sb.AppendLine($"Total inventory value: {_products.Sum(product => product.TotalValue):C}");
+    sb.AppendLine();
+    sb.AppendLine("Products by category:");
+
+    var productsByCategory = _products
+        .GroupBy(product => product.Category)
+        .Select(group => new
+        {
+            Category = group.Key,
+            Count = group.Count()
+        });
+
+    foreach (var item in productsByCategory)
+    {
+        sb.AppendLine($"- {item.Category}: {item.Count}");
+    }
+
+    return sb.ToString();
+}
+```
+
+This method uses:
+
+| LINQ operator | Purpose |
+|---|---|
+| `Count()` | Counts products. |
+| `Sum()` | Calculates total value. |
+| `GroupBy()` | Groups products by category. |
+| `Select()` | Projects each group into a simple summary object. |
+
+### Low-stock report
+
+Low-stock reports help detect products that need attention.
+
+```csharp
+public string GenerateLowStockReport(int threshold = 5)
+{
+    StringBuilder sb = new();
+
+    sb.AppendLine("Low Stock Report");
+    sb.AppendLine("================");
+
+    var lowStockProducts = _products
+        .Where(product => product.Quantity < threshold)
+        .OrderBy(product => product.Quantity);
+
+    if (!lowStockProducts.Any())
+    {
+        sb.AppendLine("No low-stock products.");
+        return sb.ToString();
+    }
+
+    foreach (Product product in lowStockProducts)
+    {
+        sb.AppendLine($"ID: {product.Id} | {product.Name} | Qty: {product.Quantity} | Price: {product.Price:C}");
+    }
+
+    return sb.ToString();
+}
+```
+
+The method accepts a default threshold of `5`, but callers can pass another value if needed.
+
+### Top products report
+
+A ranking report can order products by total value:
+
+```csharp
+public string GenerateTopProducts(int count = 5)
+{
+    StringBuilder sb = new();
+
+    sb.AppendLine("Top Products by Inventory Value");
+    sb.AppendLine("===============================");
+
+    var topProducts = _products
+        .OrderByDescending(product => product.TotalValue)
+        .Take(count);
+
+    int position = 1;
+
+    foreach (Product product in topProducts)
+    {
+        sb.AppendLine($"{position}. {product.Name} - {product.TotalValue:C}");
+        position++;
+    }
+
+    return sb.ToString();
+}
+```
+
+This uses:
+
+- `OrderByDescending` to sort from highest to lowest value.
+- `Take` to limit the number of results.
+- A `position` variable to number the ranking.
+
+### Exporting to CSV
+
+CSV is useful for spreadsheets, imports, and simple data exchange.
+
+```csharp
+public string ExportCsv()
+{
+    StringBuilder sb = new();
+
+    sb.AppendLine("Id,Name,Price,Quantity,Category,TotalValue");
+
+    foreach (Product product in _products.OrderBy(product => product.Id))
+    {
+        sb.AppendLine($"{product.Id},{product.Name},{product.Price},{product.Quantity},{product.Category},{product.TotalValue}");
+    }
+
+    return sb.ToString();
+}
+```
+
+The header defines the column order. Each product becomes one row.
+
+For production-grade CSV, consider escaping commas, quotes, and line breaks inside text fields.
+
+### Exporting a JSON summary
+
+JSON exports are useful for APIs, dashboards, and integrations.
+
+```csharp
+public string ExportSummaryJson()
+{
+    var summary = new
+    {
+        totalProducts = _products.Count(),
+        totalInventoryValue = _products.Sum(product => product.TotalValue),
+        productsByCategory = _products
+            .GroupBy(product => product.Category)
+            .Select(group => new
+            {
+                category = group.Key.ToString(),
+                count = group.Count()
+            }),
+        topProducts = _products
+            .OrderByDescending(product => product.TotalValue)
+            .Take(5)
+            .Select(product => new
+            {
+                product.Id,
+                product.Name,
+                product.TotalValue
+            })
+    };
+
+    return JsonSerializer.Serialize(summary, new JsonSerializerOptions
+    {
+        WriteIndented = true
+    });
+}
+```
+
+The method builds an anonymous object and serializes it into readable JSON.
+
+### Testing reports from `Program.cs`
+
+Example setup:
+
+```csharp
+List<Product> products = new()
+{
+    ProductFactory.Create("Laptop", 1200M, 3, ProductCategory.Electronics),
+    ProductFactory.Create("Shirt", 25M, 27, ProductCategory.Clothing),
+    ProductFactory.Create("Rice", 10M, 20, ProductCategory.Food),
+    ProductFactory.Create("Lamp", 40M, 2, ProductCategory.Home),
+    ProductFactory.Create("Ball", 15M, 10, ProductCategory.Other),
+    ProductFactory.Create("Table", 300M, 4, ProductCategory.Home)
+};
+
+ReportGenerator reportGenerator = new(products);
+
+Console.WriteLine(reportGenerator.GenerateSummary());
+Console.WriteLine(reportGenerator.GenerateLowStockReport());
+Console.WriteLine(reportGenerator.GenerateTopProducts());
+Console.WriteLine(reportGenerator.ExportCsv());
+Console.WriteLine(reportGenerator.ExportSummaryJson());
+```
+
+Expected insights:
+
+- Total product count is shown.
+- Total inventory value is calculated.
+- Products are grouped by category.
+- Low-stock products are ordered by quantity.
+- Top products are ranked by total inventory value.
+- CSV and JSON outputs are generated from the same source data.
+
+### Why LINQ and `StringBuilder` work well together
+
+LINQ is declarative. It says what data you want:
+
+- Filter.
+- Sort.
+- Group.
+- Sum.
+- Project.
+
+`StringBuilder` handles presentation efficiently:
+
+- Adds headers.
+- Adds rows.
+- Adds summaries.
+- Produces final report text.
+
+Together, they let the program answer business questions with concise and maintainable code.
+
+### Complete `ReportGenerator` outline
+
+```csharp
+using System.Text;
+using System.Text.Json;
+using InventoryApp.Models;
+
+namespace InventoryApp.Infrastructure;
+
+public class ReportGenerator
+{
+    private readonly IEnumerable<Product> _products;
+
+    public ReportGenerator(IEnumerable<Product> products)
+    {
+        _products = products;
+    }
+
+    public string GenerateSummary()
+    {
+        StringBuilder sb = new();
+
+        sb.AppendLine("Inventory Summary");
+        sb.AppendLine($"Total products: {_products.Count()}");
+        sb.AppendLine($"Total value: {_products.Sum(product => product.TotalValue):C}");
+
+        return sb.ToString();
+    }
+
+    public string GenerateLowStockReport(int threshold = 5)
+    {
+        StringBuilder sb = new();
+
+        var lowStockProducts = _products
+            .Where(product => product.Quantity < threshold)
+            .OrderBy(product => product.Quantity);
+
+        foreach (Product product in lowStockProducts)
+        {
+            sb.AppendLine($"{product.Name}: {product.Quantity}");
+        }
+
+        return sb.ToString();
+    }
+}
+```
+
+This outline can grow into the full reporting component as the inventory app evolves.
+
+### Key ideas
+
+- Reports turn stored data into useful decisions.
+- `StringBuilder` is efficient for building multi-line text.
+- `Count`, `Sum`, `GroupBy`, and `Select` build summaries.
+- `Where` and `OrderBy` help detect low stock.
+- `OrderByDescending` and `Take` create rankings.
+- CSV exports are useful for spreadsheet-style data.
+- JSON exports are useful for APIs and integrations.
+- Anonymous objects are convenient for shaping JSON summaries.
+- LINQ keeps report logic declarative and readable.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Report | A formatted view of data designed to answer a question. |
+| `StringBuilder` | A mutable string builder optimized for repeated text construction. |
+| `AppendLine` | Adds text plus a line break to a `StringBuilder`. |
+| Executive summary | A high-level overview of key metrics. |
+| Low-stock alert | A report showing products below a quantity threshold. |
+| Ranking | An ordered list based on a score or metric. |
+| CSV | Comma-separated values, a simple tabular text format. |
+| JSON export | A structured output format useful for APIs and integrations. |
+| Anonymous object | An object created without defining a named class. |
+| Declarative query | Code that describes the desired result instead of manual control flow. |
 
 ## Repository Goal
 
