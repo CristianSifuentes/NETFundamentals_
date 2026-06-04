@@ -18,7 +18,7 @@
 | 10 | [Exit codes and null handling in C#](#10-exit-codes-and-null-handling-in-c) | STDIN, STDOUT, exit codes, CLI arguments, primitive types, `decimal`, `TryParse`, and null-safe operators | Available |
 | 11 | [Anatomy of a method in C#](#11-anatomy-of-a-method-in-c) | Return types, method names, parameters, method bodies, `void`, scope, `return`, and command processing | Available |
 | 12 | [Classes, enums, and records in C#](#12-classes-enums-and-records-in-c) | Domain modeling, classes, properties, calculated properties, enums, records, immutability, and value comparison | Available |
-| 13 | To be defined | Automated testing | Coming soon |
+| 13 | [Guard clauses: early validation in C#](#13-guard-clauses-early-validation-in-c) | Encapsulation, guard clauses, fail fast, private fields, property setters, refactoring, and Factory pattern | Available |
 | 14 | To be defined | Debugging and diagnostics | Coming soon |
 | 15 | To be defined | Garbage Collection and performance | Coming soon |
 | 16 | To be defined | Async, await, and concurrency | Coming soon |
@@ -2216,6 +2216,299 @@ This keeps domain types easy to find and makes the project structure match the c
 | Immutability | The idea that data should not change after creation. |
 | Reference comparison | Checks whether two variables point to the same object in memory. |
 | Value comparison | Checks whether two values contain the same data. |
+
+## 13. Guard clauses: early validation in C#
+
+Protecting the data that enters your system is one of the most important decisions in object-oriented programming. When class properties accept any value without restrictions, bugs appear in unexpected places.
+
+Guard clauses, the fail-fast principle, private fields, and the Factory pattern help make the `Product` model safer and more predictable.
+
+### Summary
+
+A vulnerable class lets any part of the program assign invalid values:
+
+- Empty product names.
+- Negative prices.
+- Negative quantities.
+- Inconsistent state created from different parts of the code.
+
+The goal is to reject invalid data immediately, before it gets stored inside the object.
+
+### Why public properties without validation are risky
+
+This is easy to write, but too permissive:
+
+```csharp
+public class Product
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public int Quantity { get; set; }
+}
+```
+
+Any part of the code can do this:
+
+```csharp
+Product product = new();
+product.Name = "";
+product.Price = -100M;
+product.Quantity = -5;
+```
+
+The compiler accepts it, but the object now contains invalid business data.
+
+### Refactoring the model
+
+Refactoring means improving the internal structure of code without changing its intended external behavior.
+
+For the `Product` class, useful refactoring steps include:
+
+- Convert fields to private fields.
+- Add validation inside property setters.
+- Remove unused properties such as `Description` if the application does not need them yet.
+- Remove unused overrides such as `ToString()` when they add noise without current value.
+
+Less unused code means fewer distractions and fewer maintenance points.
+
+### What a guard clause is
+
+A guard clause is a validation placed at the beginning of a method, constructor, or setter. It rejects invalid data immediately.
+
+Example:
+
+```csharp
+if (value <= 0)
+{
+    throw new ArgumentOutOfRangeException(nameof(value), "Price must be greater than zero.");
+}
+```
+
+The pattern is:
+
+1. Validate the condition.
+2. Throw an exception if the condition fails.
+3. Assign or continue only when the value is valid.
+
+This follows the **fail-fast** principle: fail early, fail clearly.
+
+### Validating before doing work
+
+Validation should happen before business logic runs.
+
+Poor flow:
+
+```text
+Run many business steps
+Calculate values
+Update state
+Validate at the end
+```
+
+Better flow:
+
+```text
+Validate first
+Stop immediately if invalid
+Run business logic only with valid data
+```
+
+If a payment amount, product price, or quantity is invalid, the program should reject it before doing unnecessary work.
+
+### Applying guard clauses to `Product`
+
+A safer `Product` class can use private fields and validated setters:
+
+```csharp
+public class Product
+{
+    private string _name = string.Empty;
+    private decimal _price;
+    private int _quantity;
+
+    public int Id { get; set; }
+
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException("Product name cannot be empty.", nameof(value));
+            }
+
+            _name = value.Trim();
+        }
+    }
+
+    public decimal Price
+    {
+        get => _price;
+        set
+        {
+            if (value <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Price must be greater than zero.");
+            }
+
+            _price = value;
+        }
+    }
+
+    public int Quantity
+    {
+        get => _quantity;
+        set
+        {
+            if (value < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), "Quantity cannot be negative.");
+            }
+
+            _quantity = value;
+        }
+    }
+
+    public ProductCategory Category { get; set; } = ProductCategory.Other;
+
+    public decimal TotalValue => Price * Quantity;
+}
+```
+
+Now the class protects itself. If another part of the program tries to assign invalid data, the setter rejects it immediately.
+
+### Why private fields help
+
+Private fields prevent external code from bypassing validation:
+
+```csharp
+private decimal _price;
+```
+
+External code cannot assign `_price` directly. It must go through the `Price` property, which contains the guard clause.
+
+This is encapsulation: the class controls how its internal data is changed.
+
+### Factory pattern
+
+The Factory pattern centralizes object creation. Instead of spreading construction logic across the app, a factory puts creation, validation, and ID generation in one place.
+
+A factory can live in a folder such as:
+
+```text
+src/
+  InventoryApp/
+    Factories/
+      ProductFactory.cs
+```
+
+Example:
+
+```csharp
+public static class ProductFactory
+{
+    private static int _nextId = 1;
+
+    public static Product Create(
+        string name,
+        decimal price,
+        int quantity,
+        ProductCategory category = ProductCategory.Other)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Product name is required.", nameof(name));
+        }
+
+        if (price <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(price), "Price must be greater than zero.");
+        }
+
+        if (quantity < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity cannot be negative.");
+        }
+
+        return new Product
+        {
+            Id = _nextId++,
+            Name = name,
+            Price = price,
+            Quantity = quantity,
+            Category = category
+        };
+    }
+}
+```
+
+`ProductFactory` is static because it does not need object instances. It simply provides shared creation behavior.
+
+### Factory methods for business scenarios
+
+Factories can expose different methods for different business rules.
+
+Example:
+
+```csharp
+public static Product CreateWithStock(
+    string name,
+    decimal price,
+    int quantity,
+    ProductCategory category = ProductCategory.Other)
+{
+    if (quantity <= 0)
+    {
+        throw new ArgumentOutOfRangeException(nameof(quantity), "Stock must be greater than zero.");
+    }
+
+    return Create(name, price, quantity, category);
+}
+```
+
+`CreateWithStock` adds one extra rule and then delegates the shared creation logic to `Create`.
+
+This keeps validation reusable and avoids duplicating construction code.
+
+### Choosing the right exception
+
+Common validation exceptions:
+
+| Exception | Use when |
+|---|---|
+| `ArgumentException` | A parameter is invalid in a general way. |
+| `ArgumentNullException` | A required parameter is `null`. |
+| `ArgumentOutOfRangeException` | A numeric value is outside the allowed range. |
+
+Throwing clear exceptions helps developers understand what failed and where.
+
+### Key ideas
+
+- Public setters without validation can create invalid objects.
+- Guard clauses reject invalid data immediately.
+- Fail fast means errors should appear early and clearly.
+- Private fields prevent external code from bypassing validation.
+- Validated setters protect object state.
+- Refactoring improves structure without changing intended behavior.
+- Factories centralize object creation and validation.
+- Static factories can generate IDs and enforce consistent rules.
+- Factory methods can delegate to each other to avoid duplicate logic.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Guard clause | Early validation that stops execution when data is invalid. |
+| Fail fast | A principle where invalid states are rejected as soon as possible. |
+| Encapsulation | Keeping internal data protected and exposing controlled access. |
+| Private field | A field that can only be accessed inside its class. |
+| Setter validation | Validation logic inside a property `set` block. |
+| Refactoring | Improving code structure without changing intended behavior. |
+| Factory pattern | A pattern that centralizes object creation logic. |
+| Static class | A class that cannot be instantiated and contains shared members. |
+| `ArgumentException` | Exception for invalid argument values. |
+| `ArgumentOutOfRangeException` | Exception for values outside an allowed range. |
 
 ## Repository Goal
 
