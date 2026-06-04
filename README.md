@@ -20,7 +20,7 @@
 | 12 | [Classes, enums, and records in C#](#12-classes-enums-and-records-in-c) | Domain modeling, classes, properties, calculated properties, enums, records, immutability, and value comparison | Available |
 | 13 | [Guard clauses: early validation in C#](#13-guard-clauses-early-validation-in-c) | Encapsulation, guard clauses, fail fast, private fields, property setters, refactoring, and Factory pattern | Available |
 | 14 | [Checkpoint: validation, Factory, and enums](#14-checkpoint-validation-factory-and-enums) | Module review, `void`, enums, exceptions, records, classes, Factory pattern, and domain model validation | Available |
-| 15 | To be defined | Garbage Collection and performance | Coming soon |
+| 15 | [`List`, `Dictionary`, and `HashSet` in C#](#15-list-dictionary-and-hashset-in-c) | Collections, ordering, fast lookup, uniqueness, interfaces, repositories, and `IProductRepository` | Available |
 | 16 | To be defined | Async, await, and concurrency | Coming soon |
 | 17 | To be defined | Dependency injection | Coming soon |
 | 18 | To be defined | Logging and observability | Coming soon |
@@ -2739,6 +2739,247 @@ Use this checklist to validate your progress:
 | Factory | A pattern that centralizes object creation. |
 | Domain model | The code representation of business concepts and rules. |
 | Validation | The process of rejecting invalid data before it enters the system. |
+
+## 15. `List`, `Dictionary`, and `HashSet` in C#
+
+Once products are created with a Factory, the next question is where to store them. C# collections provide different ways to organize objects depending on what the program needs: order, fast lookup, or uniqueness.
+
+Choosing the right collection early makes the code easier to understand and more efficient as the inventory project grows.
+
+### Summary
+
+C# provides several collection types, but three are especially important at this stage:
+
+- `List<T>` stores ordered items and allows access by index.
+- `Dictionary<TKey, TValue>` stores key-value pairs for fast lookup.
+- `HashSet<T>` stores unique values and prevents duplicates.
+
+The inventory project can also introduce an interface, `IProductRepository`, to define how product storage should behave without locking the rest of the application to one implementation.
+
+### `List<T>`
+
+A `List<T>` works like a row of items. Each element has a position: `0`, `1`, `2`, and so on.
+
+Use a list when order matters.
+
+```csharp
+List<Product> products = new();
+
+products.Add(ProductFactory.Create("Laptop", 1200M, 3, ProductCategory.Electronics));
+products.Add(ProductFactory.Create("Mouse", 25M, 10, ProductCategory.Electronics));
+
+Product firstProduct = products[0];
+Console.WriteLine(firstProduct.Name);
+```
+
+Important traits:
+
+| Trait | Meaning |
+|---|---|
+| Ordered | Items keep insertion order. |
+| Index-based | You can access items by position. |
+| Allows duplicates | The same value can appear more than once. |
+
+Example use cases:
+
+- Showing the latest products.
+- Keeping a sales history in chronological order.
+- Displaying items in the same order they were added.
+
+### `Dictionary<TKey, TValue>`
+
+A `Dictionary<TKey, TValue>` works like a phone book: a key points to a value.
+
+Use a dictionary when you need fast lookup by an identifier.
+
+```csharp
+Dictionary<int, Product> productsById = new();
+
+Product laptop = ProductFactory.Create("Laptop", 1200M, 3, ProductCategory.Electronics);
+
+productsById.Add(laptop.Id, laptop);
+
+Product found = productsById[laptop.Id];
+Console.WriteLine(found.Name);
+```
+
+Important traits:
+
+| Trait | Meaning |
+|---|---|
+| Key-value storage | Each value is accessed through a key. |
+| Fast lookup | Ideal when searching by ID. |
+| Unique keys | A key can only exist once. |
+
+Simple example:
+
+```csharp
+Dictionary<string, int> ages = new();
+
+ages.Add("Ana", 25);
+ages.Add("Luis", 30);
+
+Console.WriteLine(ages["Ana"]);
+```
+
+For an inventory system, a dictionary is a strong fit when products are frequently searched by ID.
+
+### `HashSet<T>`
+
+A `HashSet<T>` stores unique values. If you try to add the same value twice, the duplicate is ignored.
+
+Use a hash set when uniqueness matters.
+
+```csharp
+HashSet<string> colors = new();
+
+colors.Add("red");
+colors.Add("blue");
+colors.Add("red");
+
+Console.WriteLine(colors.Count); // 2
+```
+
+Important traits:
+
+| Trait | Meaning |
+|---|---|
+| Unique values | Duplicates are not stored. |
+| Fast membership checks | Useful for checking whether a value already exists. |
+| No index access | It is not designed for position-based access. |
+
+Example use cases:
+
+- Unique product categories.
+- Product IDs that should not repeat.
+- Tags or labels where duplicates add no value.
+
+### Choosing the right collection
+
+| Scenario | Best collection |
+|---|---|
+| Store products and display them in insertion order. | `List<Product>` |
+| Find products by ID frequently. | `Dictionary<int, Product>` |
+| Store unique inventory categories. | `HashSet<ProductCategory>` |
+| Keep sales history chronologically. | `List<Sale>` |
+| Prevent repeated identifiers. | `HashSet<int>` |
+
+The best collection depends on how the data will be used.
+
+### Creating a list correctly
+
+The collection must be created before calling `.Add()`:
+
+```csharp
+List<Product> products = new List<Product>();
+products.Add(ProductFactory.Create("Keyboard", 80M, 4, ProductCategory.Electronics));
+```
+
+Modern C# can use target-typed `new`:
+
+```csharp
+List<Product> products = new();
+products.Add(ProductFactory.Create("Keyboard", 80M, 4, ProductCategory.Electronics));
+```
+
+This will not work because the list was never instantiated:
+
+```csharp
+List<Product> products;
+products.Add(ProductFactory.Create("Keyboard", 80M, 4, ProductCategory.Electronics)); // Error
+```
+
+Create first. Add second.
+
+### What an interface is
+
+An interface is a contract. It defines what something can do, but not how it does it.
+
+For product storage, an interface lets the application depend on behavior instead of a specific collection type. Later, the implementation can change from an in-memory dictionary to a file, database, or API without rewriting the rest of the program.
+
+By convention, C# interface names start with an uppercase `I`.
+
+### Creating `IProductRepository`
+
+A clean project can place repository contracts in a folder like this:
+
+```text
+src/
+  InventoryApp/
+    Repositories/
+      IProductRepository.cs
+```
+
+Example interface:
+
+```csharp
+public interface IProductRepository
+{
+    void Add(Product product);
+    Product? GetById(int id);
+    IEnumerable<int> GetAllIds();
+    IEnumerable<Product> GetAll();
+    bool Update(Product product);
+    bool Delete(int id);
+    int Count { get; }
+}
+```
+
+This interface defines what a product repository must support:
+
+| Member | Purpose |
+|---|---|
+| `Add` | Adds a product to the repository. |
+| `GetById` | Retrieves one product by ID. |
+| `GetAllIds` | Returns all product IDs. |
+| `GetAll` | Returns all products. |
+| `Update` | Updates an existing product and returns whether it succeeded. |
+| `Delete` | Removes a product by ID and returns whether it succeeded. |
+| `Count` | Read-only property that exposes how many products exist. |
+
+`Count` only has `get`, so external code can read it but cannot assign it directly.
+
+### Why repositories help
+
+A repository separates storage details from business logic.
+
+Without a repository, product storage decisions spread across the program. With a repository, the rest of the application can simply ask for product operations:
+
+```csharp
+repository.Add(product);
+Product? found = repository.GetById(product.Id);
+bool removed = repository.Delete(product.Id);
+```
+
+The application does not need to know whether the repository uses a `Dictionary`, a file, or a database internally.
+
+### Key ideas
+
+- `List<T>` is ordered and supports index access.
+- `List<T>` allows duplicate values.
+- `Dictionary<TKey, TValue>` stores key-value pairs.
+- `Dictionary<TKey, TValue>` is ideal for fast lookup by ID.
+- `HashSet<T>` stores unique values only.
+- Choose collections based on how data is accessed.
+- A collection must be instantiated before calling `.Add()`.
+- An interface defines a contract without implementation details.
+- `IProductRepository` describes what product storage must do.
+- A repository makes it easier to change storage implementation later.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Collection | A type that stores multiple values or objects. |
+| `List<T>` | An ordered collection with index-based access. |
+| Index | A numeric position inside a list. |
+| `Dictionary<TKey, TValue>` | A collection that maps keys to values. |
+| Key-value pair | A relationship where a key identifies a value. |
+| `HashSet<T>` | A collection that stores unique values. |
+| Duplicate | A repeated value. |
+| Interface | A contract that defines required members without implementation. |
+| Repository | A component that manages storage and retrieval of domain objects. |
+| Read-only property | A property with `get` but no external `set`. |
 
 ## Repository Goal
 
