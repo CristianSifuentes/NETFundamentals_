@@ -13,7 +13,7 @@
 | 05 | [`bin` and `obj` folders in .NET: what they are and when to ignore them](#05-bin-and-obj-folders-in-net-what-they-are-and-when-to-ignore-them) | Build artifacts, `.gitignore`, Git workflow, GitHub setup, and `.gitkeep` | Available |
 | 06 | [Module checkpoint: quiz and base project](#06-module-checkpoint-quiz-and-base-project) | Module review, .NET ecosystem quiz, code ordering, namespaces, CLI commands, and inventory project checklist | Available |
 | 07 | [How arguments work in C#](#07-how-arguments-work-in-c) | Command-line arguments, `args`, `switch`, stdin, stdout, interactive mode, functions, and exit codes | Available |
-| 08 | To be defined | Interfaces, abstractions, and contracts | Coming soon |
+| 08 | [Safe conversion with `TryParse` in C#](#08-safe-conversion-with-tryparse-in-c) | Data types, user input, `Parse` vs `TryParse`, `out`, decimals, inventory calculations, and ternary expressions | Available |
 | 09 | To be defined | Collections, generics, and LINQ | Coming soon |
 | 10 | To be defined | Error handling and exceptions | Coming soon |
 | 11 | To be defined | Files, streams, and serialization | Coming soon |
@@ -1093,6 +1093,186 @@ This gives the app two paths:
 | Interactive mode | A mode where the program keeps running and waits for user input. |
 | Nullable reference | A reference value marked with `?` to show that it may be null. |
 | Coupling | A design problem where pieces of code depend too heavily on each other. |
+
+## 08. Safe conversion with `TryParse` in C#
+
+Working with numbers, prices, and quantities in C# requires understanding data types and safe conversion. Everything the user types into the console arrives as text, so converting that input correctly is the difference between a reliable program and one that crashes as soon as the user enters something unexpected.
+
+### Summary
+
+C# is a strongly typed language. Every variable has a specific type, and that type defines what kind of value the variable can store.
+
+When input comes from the console, it starts as a `string`. If the program needs to calculate with that input, the string must be converted into a numeric type such as `int` or `decimal`. For user input, the safest approach is `TryParse`.
+
+### Fundamental data types in C#
+
+These are some of the most common types used in console applications:
+
+| Type | Purpose | Example |
+|---|---|---|
+| `int` | Whole numbers, such as quantities or counts. | `5` |
+| `decimal` | Money or precise decimal values. | `25.99M` |
+| `string` | Text. | `"Laptop"` |
+| `bool` | Logical values. | `true` or `false` |
+
+For `decimal` literals, add `M` at the end:
+
+```csharp
+decimal price = 25.99M;
+```
+
+Without `M`, C# treats the number as a `double` by default. That can produce a compiler error when assigning to a `decimal`. For money, `decimal` is usually preferred because it provides better precision for financial values.
+
+### Reading user input
+
+Console input is read with `Console.ReadLine()`:
+
+```csharp
+Console.Write("Enter a quantity: ");
+string? quantityInput = Console.ReadLine();
+```
+
+The result is `string?` because `Console.ReadLine()` can return `null`. Before doing numeric operations, the input must be converted.
+
+### Converting input with `TryParse`
+
+Use `int.TryParse` to convert text into an integer safely:
+
+```csharp
+Console.Write("Enter a quantity: ");
+string? quantityInput = Console.ReadLine();
+
+if (int.TryParse(quantityInput, out int quantity))
+{
+    Console.WriteLine($"Quantity: {quantity}");
+}
+else
+{
+    Console.WriteLine("Invalid quantity. Please enter a whole number.");
+}
+```
+
+The `out` keyword lets `TryParse` create and fill the converted variable in one step.
+
+If conversion succeeds:
+
+- `TryParse` returns `true`.
+- The `quantity` variable contains the converted number.
+
+If conversion fails:
+
+- `TryParse` returns `false`.
+- The program continues running without throwing an exception.
+
+### `Parse` vs `TryParse`
+
+The difference is critical:
+
+| Method | Behavior with invalid input |
+|---|---|
+| `int.Parse("ABC")` | Throws an exception and can stop the program. |
+| `int.TryParse("ABC", out int result)` | Returns `false` and lets the program continue. |
+
+Rule of thumb: **use `TryParse` whenever the value comes from the user**. User input should never be trusted to match exactly what the program expects.
+
+### Converting prices with `decimal.TryParse`
+
+The same pattern works for monetary values:
+
+```csharp
+Console.Write("Enter a price: ");
+string? priceInput = Console.ReadLine();
+
+if (decimal.TryParse(priceInput, out decimal price))
+{
+    Console.WriteLine($"Price: {price}");
+}
+else
+{
+    Console.WriteLine("Invalid price. Please enter a numeric value.");
+}
+```
+
+Use `decimal` for prices because money requires predictable decimal precision.
+
+### Calculating total inventory value
+
+Once the quantity and price are safely converted, the calculation is direct:
+
+```csharp
+Console.Write("Enter a quantity: ");
+string? quantityInput = Console.ReadLine();
+
+Console.Write("Enter a price: ");
+string? priceInput = Console.ReadLine();
+
+if (int.TryParse(quantityInput, out int quantity) &&
+    decimal.TryParse(priceInput, out decimal price))
+{
+    decimal totalValue = quantity * price;
+    Console.WriteLine();
+    Console.WriteLine($"Total inventory value: {totalValue}");
+}
+else
+{
+    Console.WriteLine();
+    Console.WriteLine("Invalid input. Quantity and price must be numeric.");
+}
+```
+
+Example:
+
+```text
+Quantity: 5
+Price: 25
+Total inventory value: 125
+```
+
+Adding blank lines with `Console.WriteLine()` can make console output easier to read, especially inside conditional branches.
+
+### Ternary operator
+
+The ternary operator is a compact `if/else` expression:
+
+```csharp
+string message = quantity > 0
+    ? "Quantity is valid."
+    : "Quantity must be greater than zero.";
+```
+
+It follows this structure:
+
+```text
+condition ? valueIfTrue : valueIfFalse
+```
+
+Use it for simple conditional assignments. If the logic becomes hard to read, use a regular `if/else` block instead.
+
+### Key ideas
+
+- C# variables always have a defined type.
+- Console input arrives as text, usually `string?`.
+- Numeric input must be converted before calculations.
+- `Parse` can throw exceptions when input is invalid.
+- `TryParse` returns `true` or `false` and keeps the program stable.
+- Use `int` for quantities and `decimal` for money.
+- Add `M` to decimal literals, such as `25.99M`.
+- `out` allows `TryParse` to return the converted value.
+- The ternary operator is useful for short conditional assignments.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Strong typing | A language rule where each variable has a specific type. |
+| `int` | A numeric type for whole numbers. |
+| `decimal` | A numeric type for precise decimal values, commonly used for money. |
+| `string` | A type for text values. |
+| `bool` | A type for `true` or `false` values. |
+| `Parse` | A conversion method that throws an exception when conversion fails. |
+| `TryParse` | A conversion method that returns `true` or `false` instead of throwing for invalid input. |
+| `out` | A keyword that allows a method to assign a value to a variable passed by reference. |
+| Ternary operator | A compact conditional expression written as `condition ? trueValue : falseValue`. |
 
 ## Repository Goal
 
