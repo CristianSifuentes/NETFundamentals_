@@ -19,7 +19,7 @@
 | 11 | [Anatomy of a method in C#](#11-anatomy-of-a-method-in-c) | Return types, method names, parameters, method bodies, `void`, scope, `return`, and command processing | Available |
 | 12 | [Classes, enums, and records in C#](#12-classes-enums-and-records-in-c) | Domain modeling, classes, properties, calculated properties, enums, records, immutability, and value comparison | Available |
 | 13 | [Guard clauses: early validation in C#](#13-guard-clauses-early-validation-in-c) | Encapsulation, guard clauses, fail fast, private fields, property setters, refactoring, and Factory pattern | Available |
-| 14 | To be defined | Debugging and diagnostics | Coming soon |
+| 14 | [Checkpoint: validation, Factory, and enums](#14-checkpoint-validation-factory-and-enums) | Module review, `void`, enums, exceptions, records, classes, Factory pattern, and domain model validation | Available |
 | 15 | To be defined | Garbage Collection and performance | Coming soon |
 | 16 | To be defined | Async, await, and concurrency | Coming soon |
 | 17 | To be defined | Dependency injection | Coming soon |
@@ -2509,6 +2509,236 @@ Throwing clear exceptions helps developers understand what failed and where.
 | Static class | A class that cannot be instantiated and contains shared members. |
 | `ArgumentException` | Exception for invalid argument values. |
 | `ArgumentOutOfRangeException` | Exception for values outside an allowed range. |
+
+## 14. Checkpoint: validation, Factory, and enums
+
+After several lessons building a complete domain model, this checkpoint reviews the ideas that make the inventory project more robust: method extraction, classes, records, enums, validation, guard clauses, and the Factory pattern.
+
+The goal is not to pass a formal test. The goal is to confirm that the code compiles, protects invalid data from entering the system, and communicates intent clearly.
+
+### Summary
+
+This checkpoint focuses on five core questions:
+
+- What does `void` mean?
+- Why use enums for fixed values?
+- What happens when an exception is thrown?
+- When should a record be used instead of a class?
+- How does a Factory centralize object creation?
+
+Together, these concepts form the foundation of a safer C# domain model.
+
+### 1. What does `void` mean in C#?
+
+`void` means that a method does not return a value.
+
+Example:
+
+```csharp
+static void ShowMenu()
+{
+    Console.WriteLine("Available commands:");
+    Console.WriteLine("list");
+    Console.WriteLine("add");
+    Console.WriteLine("search");
+    Console.WriteLine("exit");
+}
+```
+
+The method performs an action by printing text, but it does not send a value back to the caller.
+
+Compare it with a method that returns a value:
+
+```csharp
+static decimal CalculateTotal(decimal price, int quantity)
+{
+    return price * quantity;
+}
+```
+
+`CalculateTotal` returns a `decimal`, so the caller can store or use the result.
+
+### 2. Why use enums for fixed values?
+
+Use an enum when a value must belong to a known, fixed set of options.
+
+Example:
+
+```csharp
+public enum ProductCategory
+{
+    Electronics,
+    Clothing,
+    Home,
+    Other
+}
+```
+
+Enums are useful for values such as product categories or product states because the compiler validates them.
+
+This is safer than strings:
+
+```csharp
+string category = "eletronics"; // Typo accepted
+```
+
+With enums:
+
+```csharp
+ProductCategory category = ProductCategory.Electronics;
+```
+
+Invalid enum names are caught at compile time.
+
+### 3. What happens with `throw new ArgumentException()`?
+
+`throw new ArgumentException()` creates and throws an exception. The current flow stops immediately unless the exception is handled.
+
+Example:
+
+```csharp
+if (string.IsNullOrWhiteSpace(name))
+{
+    throw new ArgumentException("Product name is required.", nameof(name));
+}
+```
+
+Guard clauses use `throw` to reject invalid data early. They do not ignore the error, return `null`, or simply print a message. They stop the invalid value before it spreads through the system.
+
+### 4. When should you choose `record` instead of `class`?
+
+Use a `record` for data that should behave like an immutable value.
+
+Example:
+
+```csharp
+public record Supplier(
+    int Id,
+    string Name,
+    string Email,
+    string Phone
+);
+```
+
+Use a `class` for data that changes during its lifecycle.
+
+Example:
+
+```csharp
+public class Product
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public int Quantity { get; set; }
+}
+```
+
+General guideline:
+
+| Type | Use when |
+|---|---|
+| `record` | The data is created once and should remain stable. |
+| `class` | The data can change over time. |
+
+A supplier is a good record candidate because its identity data is usually stable. A product is a good class candidate because price, quantity, and status can change.
+
+### 5. How does a Factory centralize object creation?
+
+The Factory pattern puts object creation in one place.
+
+For the inventory project, `ProductFactory.Create` can handle:
+
+- Product validation.
+- Automatic ID generation.
+- Default values such as `ProductCategory.Other`.
+- Consistent object construction.
+
+Example:
+
+```csharp
+Product product = ProductFactory.Create(
+    name: "Laptop",
+    price: 1200M,
+    quantity: 3,
+    category: ProductCategory.Electronics
+);
+```
+
+This keeps creation logic out of random parts of the codebase.
+
+### Practical challenge
+
+Order the steps for creating a product with the Factory:
+
+```text
+A. Use the created product.
+B. Add the required using/import so the code can access ProductFactory.
+C. Call the Create method.
+```
+
+Correct order:
+
+```text
+B -> C -> A
+```
+
+First, the code needs access to `ProductFactory`. Then it can call `Create`. Finally, it can use the resulting product.
+
+Example:
+
+```csharp
+using InventoryApp.Factories;
+
+Product product = ProductFactory.Create(
+    "Laptop",
+    1200M,
+    3,
+    ProductCategory.Electronics
+);
+
+Console.WriteLine(product.Name);
+```
+
+### Checkpoint checklist
+
+Use this checklist to validate your progress:
+
+```text
+[ ] Methods with actions use void when they do not return values
+[ ] Methods that calculate or read data return the correct type
+[ ] Product categories and states use enums instead of raw strings
+[ ] Invalid constructor or setter values are rejected with exceptions
+[ ] Stable data uses records when appropriate
+[ ] Mutable domain entities use classes
+[ ] Product creation is centralized in ProductFactory
+[ ] The project compiles without errors
+[ ] The model prevents invalid product data
+```
+
+### Key ideas
+
+- `void` means a method performs an action but returns no value.
+- Enums protect fixed values from typos and invalid strings.
+- `throw new ArgumentException()` stops invalid flow immediately.
+- Records are best for stable value-like data.
+- Classes are best for mutable domain objects.
+- Factories centralize creation, validation, and ID generation.
+- The real checkpoint is whether the code compiles and the model protects its data.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| `void` | A method return type that means no value is returned. |
+| Enum | A fixed set of named values validated by the compiler. |
+| Exception | An error object that interrupts normal execution flow. |
+| `throw` | A keyword used to raise an exception. |
+| Record | A data-focused type that works well for stable values. |
+| Class | A type used to model objects that can hold state and behavior. |
+| Factory | A pattern that centralizes object creation. |
+| Domain model | The code representation of business concepts and rules. |
+| Validation | The process of rejecting invalid data before it enters the system. |
 
 ## Repository Goal
 
