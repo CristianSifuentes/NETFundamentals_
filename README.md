@@ -14,7 +14,7 @@
 | 06 | [Module checkpoint: quiz and base project](#06-module-checkpoint-quiz-and-base-project) | Module review, .NET ecosystem quiz, code ordering, namespaces, CLI commands, and inventory project checklist | Available |
 | 07 | [How arguments work in C#](#07-how-arguments-work-in-c) | Command-line arguments, `args`, `switch`, stdin, stdout, interactive mode, functions, and exit codes | Available |
 | 08 | [Safe conversion with `TryParse` in C#](#08-safe-conversion-with-tryparse-in-c) | Data types, user input, `Parse` vs `TryParse`, `out`, decimals, inventory calculations, and ternary expressions | Available |
-| 09 | To be defined | Collections, generics, and LINQ | Coming soon |
+| 09 | [`null` in C#: validating user input](#09-null-in-c-validating-user-input) | Null safety, nullable strings, `Trim`, `ToLowerInvariant`, default values, loops, and inventory commands | Available |
 | 10 | To be defined | Error handling and exceptions | Coming soon |
 | 11 | To be defined | Files, streams, and serialization | Coming soon |
 | 12 | To be defined | JSON and application configuration | Coming soon |
@@ -1273,6 +1273,198 @@ Use it for simple conditional assignments. If the logic becomes hard to read, us
 | `TryParse` | A conversion method that returns `true` or `false` instead of throwing for invalid input. |
 | `out` | A keyword that allows a method to assign a value to a variable passed by reference. |
 | Ternary operator | A compact conditional expression written as `condition ? trueValue : falseValue`. |
+
+## 09. `null` in C#: validating user input
+
+`null` has caused more bugs and runtime failures than almost any other concept in programming. Tony Hoare, who introduced null references in 1965, later called it his "billion-dollar mistake." In C#, understanding nullability is essential for writing robust code that behaves predictably when user input is missing, empty, or unexpected.
+
+### Summary
+
+Console applications must assume that user input can be invalid. The user might type extra spaces, use different casing, press Enter without typing anything, or produce a `null` value in some input scenarios.
+
+C# helps you model that uncertainty with nullable reference types such as `string?`. Once a value is nullable, the code should validate it before using it.
+
+### Why `null` matters
+
+`null` means "no value." That sounds simple, but it becomes dangerous when code assumes a value exists and tries to use it anyway.
+
+For example:
+
+```csharp
+string? input = Console.ReadLine();
+int length = input.Length;
+```
+
+This is unsafe because `input` might be `null`. If it is, accessing `.Length` can fail.
+
+A safer approach is:
+
+```csharp
+string? input = Console.ReadLine();
+int length = input?.Length ?? 0;
+
+Console.WriteLine($"Input length: {length}");
+```
+
+This uses two important operators:
+
+| Operator | Meaning |
+|---|---|
+| `?.` | Null-conditional operator. Accesses a member only if the value is not null. |
+| `??` | Null-coalescing operator. Provides a fallback value when the left side is null. |
+
+If `input` is `null`, the length becomes `0` instead of crashing the program.
+
+### Cleaning user input with `Trim` and `ToLowerInvariant`
+
+Before comparing user input, normalize it:
+
+| Method | Purpose |
+|---|---|
+| `Trim()` | Removes whitespace at the beginning and end of the text. |
+| `ToLowerInvariant()` | Converts text to lowercase in a culture-stable way. |
+
+Example:
+
+```csharp
+string? input = Console.ReadLine();
+
+string command = string.IsNullOrEmpty(input)
+    ? "exit"
+    : input.Trim().ToLowerInvariant();
+```
+
+This code does three things:
+
+- Checks whether the input is `null` or empty.
+- Uses `"exit"` as a safe default when no value is provided.
+- Trims and lowercases valid input before comparing it.
+
+For user commands, normalization prevents `" LIST "`, `"List"`, and `"list"` from being treated as different commands.
+
+### `IsNullOrEmpty` vs `IsNullOrWhiteSpace`
+
+C# provides two useful validation methods:
+
+| Method | Checks |
+|---|---|
+| `string.IsNullOrEmpty(value)` | `null` or `""` only. |
+| `string.IsNullOrWhiteSpace(value)` | `null`, `""`, or text made only of spaces. |
+
+For console commands, `IsNullOrWhiteSpace` is often the better choice:
+
+```csharp
+string command = string.IsNullOrWhiteSpace(input)
+    ? "exit"
+    : input.Trim().ToLowerInvariant();
+```
+
+This treats an empty line and a line with only spaces the same way.
+
+### Applying null safety to the inventory project
+
+The inventory app can support a small set of commands:
+
+| Command | Behavior |
+|---|---|
+| `list` | Shows current inventory products. |
+| `add` | Starts the flow to add a product. |
+| `search` | Searches for existing products. |
+| `exit` | Ends the program. |
+
+The program can stay active while a boolean variable remains `true`:
+
+```csharp
+bool isRunning = true;
+int productCount = 0;
+
+while (isRunning)
+{
+    Console.Write("Enter a command (list, add, search, exit): ");
+    string? input = Console.ReadLine();
+
+    string command = string.IsNullOrWhiteSpace(input)
+        ? "exit"
+        : input.Trim().ToLowerInvariant();
+
+    switch (command)
+    {
+        case "exit":
+            isRunning = false;
+            Console.WriteLine("Goodbye.");
+            break;
+
+        case "list":
+            Console.WriteLine($"Products available: {productCount}");
+            break;
+
+        case "add":
+            Console.WriteLine("Add product flow coming soon.");
+            break;
+
+        case "search":
+            Console.WriteLine("Search product flow coming soon.");
+            break;
+
+        default:
+            Console.WriteLine("Command not recognized. Available commands: list, add, search, exit.");
+            break;
+    }
+}
+```
+
+This flow gives the application predictable behavior even when the user presses Enter without typing anything. In that case, the command becomes `"exit"` and the program ends cleanly.
+
+### How the `switch` handles commands
+
+The `switch` statement evaluates the normalized command:
+
+- If the command is `"exit"`, the loop stops and the app prints a goodbye message.
+- If the command is `"list"`, the app shows how many products are available.
+- If the command is `"add"` or `"search"`, the app can call future inventory features.
+- If the command is unknown, the `default` case explains what commands are available.
+
+Because the input was normalized before the `switch`, the cases stay clean and easy to read.
+
+### Testing the behavior
+
+Try these inputs:
+
+| User input | Normalized command | Result |
+|---|---|---|
+| `exit` | `exit` | Ends the program. |
+| `list` | `list` | Shows product count. |
+| ` LIST ` | `list` | Shows product count. |
+| empty input | `exit` | Ends the program safely. |
+| `unknown` | `unknown` | Shows command-not-recognized message. |
+
+The key result is that invalid or missing input no longer surprises the program.
+
+### Key ideas
+
+- `null` means a variable has no value.
+- Nullable reference types such as `string?` make possible null values explicit.
+- `Console.ReadLine()` can return `null`.
+- Use `?.` and `??` to safely handle missing values.
+- Use `Trim()` to remove extra spaces from user input.
+- Use `ToLowerInvariant()` to normalize commands before comparison.
+- Use `string.IsNullOrWhiteSpace()` when blank input should be treated as missing.
+- A default command such as `"exit"` can make empty input safe and predictable.
+- Normalize input before passing it to a `switch`.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| `null` | A value that represents no value. |
+| Nullable reference type | A reference type marked with `?`, such as `string?`, to show it may be null. |
+| Null-conditional operator | `?.`, used to access members only when the value is not null. |
+| Null-coalescing operator | `??`, used to provide a fallback value when something is null. |
+| `Trim()` | Removes whitespace from the start and end of a string. |
+| `ToLowerInvariant()` | Converts text to lowercase using culture-independent rules. |
+| `IsNullOrEmpty()` | Checks whether a string is null or empty. |
+| `IsNullOrWhiteSpace()` | Checks whether a string is null, empty, or only whitespace. |
+| Normalization | The process of converting input into a consistent format before processing it. |
 
 ## Repository Goal
 
