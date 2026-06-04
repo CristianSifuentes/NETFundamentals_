@@ -26,7 +26,7 @@
 | 18 | [How `FileManager` works in C#](#18-how-filemanager-works-in-c) | File I/O, `System.IO`, `File`, `Directory`, `Path`, line-based operations, directory creation, and search patterns | Available |
 | 19 | [JSON serialization in .NET: saving and restoring objects](#19-json-serialization-in-net-saving-and-restoring-objects) | `System.Text.Json`, serialization, deserialization, JSON options, enum converters, backups, and persistence | Available |
 | 20 | [LINQ and `StringBuilder`: inventory reports in C#](#20-linq-and-stringbuilder-inventory-reports-in-c) | Reporting, `StringBuilder`, LINQ summaries, low-stock alerts, rankings, CSV export, and JSON export | Available |
-| 21 | To be defined | Packaging and distribution | Coming soon |
+| 21 | [Facade and complete menu in C# with JSON persistence](#21-facade-and-complete-menu-in-c-with-json-persistence) | Facade pattern, `InventoryService`, CRUD, repository orchestration, reports, JSON persistence, and interactive menu | Available |
 | 22 | To be defined | Microsoft and .NET best practices | Coming soon |
 | 23 | To be defined | Basic security and secret management | Coming soon |
 | 24 | To be defined | Persistence and data access | Coming soon |
@@ -4399,6 +4399,460 @@ This outline can grow into the full reporting component as the inventory app evo
 | JSON export | A structured output format useful for APIs and integrations. |
 | Anonymous object | An object created without defining a named class. |
 | Declarative query | Code that describes the desired result instead of manual control flow. |
+
+## 21. Facade and complete menu in C# with JSON persistence
+
+Building a complete inventory system in C# requires more than isolated methods. The application needs a layer that coordinates the repository, JSON storage, reports, and user actions without exposing all internal complexity to `Program.cs`.
+
+That is exactly what the Facade pattern provides through an `InventoryService` class: one clear entry point for the application's business operations.
+
+### Summary
+
+The inventory project now connects the main architectural pieces:
+
+- `InMemoryProductRepository` stores products in memory.
+- `JsonInventoryStorage` saves and loads products from JSON.
+- `ReportGenerator` creates summaries, low-stock reports, rankings, CSV, and JSON output.
+- `InventoryService` coordinates those collaborators behind a simpler API.
+- `Program.cs` displays a menu and calls the service.
+
+The result is a complete console inventory application with CRUD operations, search, reports, export, and persistence.
+
+### What the Facade pattern does
+
+The Facade pattern simplifies a system by offering one entry point that coordinates multiple internal components.
+
+Without a facade, `Program.cs` would need to know too much:
+
+```text
+Program.cs -> Repository
+Program.cs -> JSON storage
+Program.cs -> Report generator
+Program.cs -> Product factory
+Program.cs -> File paths
+```
+
+With a facade:
+
+```text
+Program.cs -> InventoryService -> Repository / Storage / Reports / Factory
+```
+
+This keeps the UI flow clean and moves business coordination into one dedicated class.
+
+### Creating `InventoryService`
+
+`InventoryService` can live in a service layer:
+
+```text
+src/
+  InventoryApp/
+    Services/
+      InventoryService.cs
+```
+
+Example structure:
+
+```csharp
+public class InventoryService
+{
+    private readonly InMemoryProductRepository _repository;
+    private readonly JsonInventoryStorage _storage;
+    private readonly string _inventoryPath;
+
+    public InventoryService()
+    {
+        _repository = new InMemoryProductRepository();
+        _storage = new JsonInventoryStorage();
+        _inventoryPath = "inventory.json";
+
+        LoadInventory();
+    }
+}
+```
+
+The constructor creates the internal collaborators and immediately loads existing data if the JSON file already exists.
+
+### Loading existing inventory
+
+```csharp
+private void LoadInventory()
+{
+    List<Product> products = _storage.Load(_inventoryPath);
+
+    foreach (Product product in products)
+    {
+        _repository.Add(product);
+    }
+}
+```
+
+This makes persistence transparent to the rest of the application. When the app starts, previously saved products are restored into the in-memory repository.
+
+### CRUD operations
+
+CRUD means create, read, update, and delete. In this service, those operations become clear public methods.
+
+#### Add product
+
+```csharp
+public Product AddProduct(
+    string name,
+    decimal price,
+    int quantity,
+    ProductCategory category)
+{
+    Product product = ProductFactory.Create(name, price, quantity, category);
+
+    _repository.Add(product);
+    Persist();
+
+    return product;
+}
+```
+
+This method creates a validated product through the Factory, adds it to the repository, persists changes, and returns the created product.
+
+#### Get all products
+
+```csharp
+public IEnumerable<Product> GetAllProducts()
+{
+    return _repository.GetAll();
+}
+```
+
+#### Get product by ID
+
+```csharp
+public Product? GetProductById(int id)
+{
+    return _repository.GetById(id);
+}
+```
+
+The return type is nullable because a product with that ID might not exist.
+
+#### Update product
+
+```csharp
+public bool UpdateProduct(
+    int id,
+    string name,
+    decimal price,
+    int quantity,
+    ProductCategory category)
+{
+    Product? product = _repository.GetById(id);
+
+    if (product is null)
+    {
+        return false;
+    }
+
+    product.Name = name;
+    product.Price = price;
+    product.Quantity = quantity;
+    product.Category = category;
+
+    bool updated = _repository.Update(product);
+
+    if (updated)
+    {
+        Persist();
+    }
+
+    return updated;
+}
+```
+
+#### Delete product
+
+```csharp
+public bool DeleteProduct(int id)
+{
+    bool deleted = _repository.Delete(id);
+
+    if (deleted)
+    {
+        Persist();
+    }
+
+    return deleted;
+}
+```
+
+Persist only after successful changes.
+
+### Search and query methods
+
+The service can expose repository queries without forcing `Program.cs` to know how they work internally:
+
+```csharp
+public IEnumerable<Product> SearchByCategory(ProductCategory category)
+{
+    return _repository.SearchByCategory(category);
+}
+
+public IEnumerable<Product> SearchByName(string name)
+{
+    return _repository.SearchByName(name);
+}
+
+public IEnumerable<Product> GetLowStockProducts(int threshold = 5)
+{
+    return _repository.GetLowStock(threshold);
+}
+
+public decimal GetTotalInventoryValue()
+{
+    return _repository.GetTotalInventoryValue();
+}
+
+public decimal GetAveragePrice()
+{
+    return _repository.GetAveragePrice();
+}
+
+public Product? GetMostExpensiveProduct()
+{
+    return _repository.GetMostExpensiveProduct();
+}
+```
+
+### Report methods
+
+`InventoryService` can create a `ReportGenerator` whenever a report is requested:
+
+```csharp
+public string GenerateSummary()
+{
+    ReportGenerator generator = new(_repository.GetAll());
+    return generator.GenerateSummary();
+}
+
+public string GenerateLowStockReport(int threshold = 5)
+{
+    ReportGenerator generator = new(_repository.GetAll());
+    return generator.GenerateLowStockReport(threshold);
+}
+
+public string GenerateTopProducts(int count = 5)
+{
+    ReportGenerator generator = new(_repository.GetAll());
+    return generator.GenerateTopProducts(count);
+}
+
+public string ExportCsv()
+{
+    ReportGenerator generator = new(_repository.GetAll());
+    return generator.ExportCsv();
+}
+```
+
+This keeps reporting behind the service API.
+
+### Persisting changes
+
+The private `Persist` method saves the current repository state:
+
+```csharp
+private void Persist()
+{
+    _storage.CreateBackup(_inventoryPath);
+
+    List<Product> products = _repository.GetAll().ToList();
+
+    _storage.Save(products, _inventoryPath);
+}
+```
+
+The flow is:
+
+1. Create a backup if the file exists.
+2. Get all products from the repository.
+3. Convert them to a list.
+4. Save them to `inventory.json`.
+
+This makes every successful change durable.
+
+### Building the interactive menu
+
+`Program.cs` can stay focused on user interaction:
+
+```csharp
+InventoryService service = new();
+bool isRunning = true;
+
+while (isRunning)
+{
+    ShowMenu();
+    string? option = Console.ReadLine();
+
+    switch (option)
+    {
+        case "1":
+            AddProductFlow(service);
+            break;
+
+        case "2":
+            ListProducts(service);
+            break;
+
+        case "3":
+            SearchById(service);
+            break;
+
+        case "4":
+            DeleteProduct(service);
+            break;
+
+        case "5":
+            SearchByCategory(service);
+            break;
+
+        case "6":
+            Console.WriteLine(service.GenerateSummary());
+            break;
+
+        case "7":
+            Console.WriteLine(service.GenerateLowStockReport());
+            break;
+
+        case "8":
+            ShowStatistics(service);
+            break;
+
+        case "9":
+            Console.WriteLine(service.ExportCsv());
+            break;
+
+        case "10":
+            isRunning = false;
+            Console.WriteLine("Goodbye.");
+            break;
+
+        default:
+            Console.WriteLine("Invalid option.");
+            break;
+    }
+}
+```
+
+The menu can expose ten user actions:
+
+| Option | Action |
+|---:|---|
+| 1 | Add product. |
+| 2 | List products. |
+| 3 | Search by ID. |
+| 4 | Delete product. |
+| 5 | Search by category. |
+| 6 | Show summary. |
+| 7 | Show low stock. |
+| 8 | Show statistics. |
+| 9 | Export CSV. |
+| 10 | Exit the system. |
+
+### Showing the menu
+
+```csharp
+static void ShowMenu()
+{
+    Console.WriteLine();
+    Console.WriteLine("Inventory Management System");
+    Console.WriteLine("1. Add product");
+    Console.WriteLine("2. List products");
+    Console.WriteLine("3. Search by ID");
+    Console.WriteLine("4. Delete product");
+    Console.WriteLine("5. Search by category");
+    Console.WriteLine("6. Show summary");
+    Console.WriteLine("7. Show low stock");
+    Console.WriteLine("8. Show statistics");
+    Console.WriteLine("9. Export CSV");
+    Console.WriteLine("10. Exit");
+    Console.Write("Choose an option: ");
+}
+```
+
+### Parsing categories with `Enum.TryParse`
+
+When users type a category, parse it safely:
+
+```csharp
+Console.Write("Category: ");
+string? categoryInput = Console.ReadLine();
+
+if (!Enum.TryParse(categoryInput, ignoreCase: true, out ProductCategory category))
+{
+    category = ProductCategory.Other;
+}
+```
+
+If parsing fails, the code uses `ProductCategory.Other` as a safe default.
+
+### Testing the complete application
+
+A realistic test flow:
+
+1. Run the application with `dotnet run`.
+2. Add a product named `Mac`.
+3. Use price `1000`.
+4. Use quantity `4`.
+5. Use category `Electronics`.
+6. List products and verify ID, name, price, quantity, total, and category.
+7. Search by ID.
+8. Search by category.
+9. Generate the summary.
+10. Show low stock and confirm `Mac` appears because quantity is below `5`.
+11. Export CSV.
+12. Delete the product by ID.
+13. List again and confirm the inventory is empty.
+14. Restart the app and confirm data persists through `inventory.json`.
+
+The most important result is that products survive between executions because they are saved to JSON.
+
+### Architecture patterns used
+
+The completed project brings together several patterns and practices:
+
+| Pattern or practice | Role in the project |
+|---|---|
+| Factory | Creates validated products and manages creation rules. |
+| Repository | Stores and retrieves products. |
+| Facade | Provides a simple service API over multiple collaborators. |
+| JSON persistence | Saves and restores product data across executions. |
+| LINQ | Queries, filters, groups, and calculates inventory data. |
+| Reporting | Turns inventory data into summaries and exports. |
+
+This is a professional and extensible shape for a console application.
+
+### Key ideas
+
+- A Facade provides one simple entry point over a more complex subsystem.
+- `InventoryService` coordinates repository, storage, reports, and product creation.
+- CRUD operations become clear service methods.
+- Search and statistics stay behind the service API.
+- Reports can be generated from repository data.
+- `Persist` saves changes and creates backups.
+- `Program.cs` should focus on the menu and user interaction.
+- `Enum.TryParse` safely handles category input.
+- JSON persistence keeps data available after restarting the app.
+- Factory, Repository, Facade, LINQ, and JSON persistence work together as a clean architecture.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Facade pattern | A design pattern that provides a simple interface over a more complex system. |
+| Service | A class that coordinates business operations. |
+| CRUD | Create, read, update, and delete operations. |
+| Orchestration | Coordinating multiple components to complete a workflow. |
+| Persistence | Saving data so it survives after the program exits. |
+| Menu loop | A loop that repeatedly shows options and processes user choices. |
+| `Enum.TryParse` | A safe way to convert text into an enum value. |
+| Backup | A copy created before overwriting persistent data. |
+| Single entry point | One class or method used to access a set of related operations. |
 
 ## Repository Goal
 
