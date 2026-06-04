@@ -16,7 +16,7 @@
 | 08 | [Safe conversion with `TryParse` in C#](#08-safe-conversion-with-tryparse-in-c) | Data types, user input, `Parse` vs `TryParse`, `out`, decimals, inventory calculations, and ternary expressions | Available |
 | 09 | [`null` in C#: validating user input](#09-null-in-c-validating-user-input) | Null safety, nullable strings, `Trim`, `ToLowerInvariant`, default values, loops, and inventory commands | Available |
 | 10 | [Exit codes and null handling in C#](#10-exit-codes-and-null-handling-in-c) | STDIN, STDOUT, exit codes, CLI arguments, primitive types, `decimal`, `TryParse`, and null-safe operators | Available |
-| 11 | To be defined | Files, streams, and serialization | Coming soon |
+| 11 | [Anatomy of a method in C#](#11-anatomy-of-a-method-in-c) | Return types, method names, parameters, method bodies, `void`, scope, `return`, and command processing | Available |
 | 12 | To be defined | JSON and application configuration | Coming soon |
 | 13 | To be defined | Automated testing | Coming soon |
 | 14 | To be defined | Debugging and diagnostics | Coming soon |
@@ -1689,6 +1689,290 @@ This organization keeps the application readable as it grows. The top-level flow
 | Null reference exception | An error caused by trying to use a value that is null. |
 | `??` | Null-coalescing operator for fallback values. |
 | `?.` | Null-conditional operator for safe member access. |
+
+## 11. Anatomy of a method in C#
+
+When a file like `Program.cs` starts growing without control, with every piece of logic mixed into one place, it is time to separate responsibilities. Methods are the fundamental tool for doing that in C#: named blocks of code that perform a specific task and can be reused whenever needed.
+
+Understanding method anatomy, return behavior, parameters, and variable scope helps you write programs that are cleaner, safer, and easier to maintain.
+
+### Summary
+
+A method is a named unit of behavior. Instead of keeping all logic in the main program flow, you can extract focused actions into methods such as `ShowMenu`, `ReadInput`, `ProcessCommand`, `ListProducts`, `AddProduct`, and `SearchProduct`.
+
+This makes the application easier to read because each method has one clear responsibility.
+
+### The four parts of a method
+
+Every C# method has four essential parts:
+
+| Part | Purpose |
+|---|---|
+| Return type | Defines what kind of value the method gives back, such as `int`, `bool`, `string`, or `void`. |
+| Method name | Describes what the method does. |
+| Parameters | Values the method receives to do its work. |
+| Body | The block of instructions inside `{ }`. |
+
+Example:
+
+```csharp
+static string Greet(string name)
+{
+    return $"Hello, {name}";
+}
+```
+
+In this method:
+
+- `string` is the return type.
+- `Greet` is the method name.
+- `string name` is the parameter.
+- The code inside `{ }` is the method body.
+
+Calling it:
+
+```csharp
+string message = Greet("Juan");
+Console.WriteLine(message);
+```
+
+Produces:
+
+```text
+Hello, Juan
+```
+
+### `void` methods
+
+When a method starts with `void`, it does not return a value. Its purpose is to perform an action.
+
+Example:
+
+```csharp
+static void ShowMenu()
+{
+    Console.WriteLine("Available commands:");
+    Console.WriteLine("list   - Show inventory products");
+    Console.WriteLine("add    - Add a product");
+    Console.WriteLine("search - Search for a product");
+    Console.WriteLine("exit   - Close the application");
+}
+```
+
+`ShowMenu` only prints information. It does not need to send a value back to the caller, so `void` is the right return type.
+
+### Extracting methods with clear responsibility
+
+A practical inventory app can split the main behavior into focused methods:
+
+| Method | Responsibility | Return type |
+|---|---|---|
+| `ShowMenu` | Prints available commands. | `void` |
+| `ReadInput` | Reads and normalizes user input. | `string` |
+| `ProcessCommand` | Routes the command to the right action. | `bool` |
+| `ListProducts` | Prints inventory totals. | `void` |
+| `AddProduct` | Placeholder for adding products later. | `void` |
+| `SearchProduct` | Placeholder for searching products later. | `void` |
+
+The main loop becomes much easier to understand:
+
+```csharp
+ShowBanner();
+
+bool keepRunning = true;
+
+while (keepRunning)
+{
+    ShowMenu();
+    string command = ReadInput();
+    keepRunning = ProcessCommand(command);
+}
+```
+
+This reads almost like plain English: show the menu, read input, process the command, and keep running while needed.
+
+### Reading input with a return value
+
+`ReadInput` should return a `string` because its job is to capture what the user typed and give it back to the caller.
+
+```csharp
+static string ReadInput()
+{
+    Console.Write("Enter a command: ");
+    string? input = Console.ReadLine();
+
+    return string.IsNullOrWhiteSpace(input)
+        ? "exit"
+        : input.Trim().ToLowerInvariant();
+}
+```
+
+The method returns a clean command:
+
+- Empty input becomes `"exit"`.
+- Extra spaces are removed.
+- Text is converted to lowercase.
+
+### Processing commands with `switch`
+
+`ProcessCommand` receives the command as a parameter. It can return `bool` to tell the main loop whether the application should continue.
+
+```csharp
+static bool ProcessCommand(string command)
+{
+    switch (command)
+    {
+        case "exit":
+            Console.WriteLine("Goodbye.");
+            return false;
+
+        case "list":
+            ListProducts();
+            return true;
+
+        case "add":
+            AddProduct();
+            return true;
+
+        case "search":
+            SearchProduct();
+            return true;
+
+        default:
+            Console.WriteLine("Command not recognized.");
+            return true;
+    }
+}
+```
+
+Returning `false` for `exit` lets the loop stop without relying on `Environment.Exit`. That makes the code easier to test and reason about.
+
+### Listing products
+
+At this stage, the method can print placeholder inventory information:
+
+```csharp
+static void ListProducts()
+{
+    int productCount = 0;
+    decimal totalValue = 0M;
+
+    Console.WriteLine($"Products in inventory: {productCount}");
+    Console.WriteLine($"Total inventory value: {totalValue}");
+}
+```
+
+Later, this method can evolve to read real product data from collections, files, or databases.
+
+### Placeholder methods
+
+Placeholder methods let you design the structure before the full behavior exists:
+
+```csharp
+static void AddProduct()
+{
+    Console.WriteLine("Add product flow will be implemented later.");
+}
+
+static void SearchProduct()
+{
+    Console.WriteLine("Search product flow will be implemented later.");
+}
+```
+
+This keeps the command structure ready for future modules.
+
+### Variable scope
+
+Scope defines where a variable exists and where it can be used. Variables declared inside a method belong only to that method.
+
+Example:
+
+```csharp
+static void MethodA()
+{
+    int localNumber = 5;
+}
+
+static void MethodB()
+{
+    Console.WriteLine(localNumber); // Compiler error
+}
+```
+
+`localNumber` exists only inside `MethodA`. `MethodB` cannot access it.
+
+This protects data from accidental changes and keeps methods independent.
+
+### Sharing values with `return`
+
+If another method needs a value, return it explicitly:
+
+```csharp
+static int MethodA()
+{
+    int localNumber = 5;
+    return localNumber;
+}
+
+static void MethodB()
+{
+    int localNumberB = MethodA();
+    Console.WriteLine(localNumberB);
+}
+```
+
+Now the value travels in a controlled way through the method return.
+
+### Method order and readability
+
+C# top-level programs often read naturally from top to bottom:
+
+1. Start the program flow.
+2. Call methods that describe the main behavior.
+3. Define helper methods below.
+
+For a method that calculates inventory value, the structure is:
+
+```csharp
+static decimal CalculateInventoryValue(int quantity, decimal price)
+{
+    return quantity * price;
+}
+```
+
+The order is:
+
+1. Method signature.
+2. Opening brace.
+3. Method body.
+4. Closing brace.
+
+### Key ideas
+
+- Methods separate responsibilities and keep `Program.cs` easier to maintain.
+- A method has a return type, name, parameters, and body.
+- `void` means the method performs an action but does not return a value.
+- Parameters let methods receive data.
+- `return` sends a value back to the caller.
+- Scope controls where variables exist.
+- Local variables are only available inside the method where they are declared.
+- Returning values is the safe way to share data between methods.
+- Small focused methods make command-line applications easier to grow.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Method | A named block of code that performs a specific task. |
+| Return type | The type of value a method returns. |
+| `void` | A return type meaning the method returns no value. |
+| Parameter | A value passed into a method so it can do its work. |
+| Method body | The instructions inside a method's braces. |
+| `return` | A keyword used to send a value back to the caller. |
+| Scope | The region of code where a variable exists and can be accessed. |
+| Local variable | A variable declared inside a method or block. |
+| Responsibility | The specific job a method or piece of code should handle. |
 
 ## Repository Goal
 
