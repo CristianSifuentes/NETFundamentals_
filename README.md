@@ -4871,7 +4871,7 @@ The release repository works as a versioned companion to the course:
 Repository:
 
 ```text
-https://github.com/MancoMartinez/inventario-app-releases
+https://github.com/CristianSifuentes/inventory-app-releases
 ```
 
 ### Repository structure
@@ -4880,11 +4880,11 @@ Each course module has its own branch:
 
 | Branch | Module | Description |
 |---|---|---|
-| `modulo-1` | Module 1 | Initial fundamentals. |
-| `modulo-2` | Module 2 | Project evolution. |
-| `modulo-3` | Module 3 | New features. |
-| `modulo-4` | Module 4 | Advanced characteristics. |
-| `modulo-5` | Module 5 | Final project version. |
+| `module-1` | Module 1 | Initial fundamentals. |
+| `module-2` | Module 2 | Project evolution. |
+| `module-3` | Module 3 | New features. |
+| `module-4` | Module 4 | Advanced characteristics. |
+| `module-5` | Module 5 | Final project version. |
 
 This structure lets you work with the exact project state that matches the lesson you are studying.
 
@@ -4895,15 +4895,15 @@ This structure lets you work with the exact project state that matches the lesso
 Use `git clone -b` when you want to download one module directly:
 
 ```bash
-git clone -b modulo-1 https://github.com/CristianSifuentes/NETFundamentals_.git
+git clone -b module-1 https://github.com/CristianSifuentes/inventory-app-releases.git
 ```
 
-Replace `modulo-1` with the branch for the module you want to practice.
+Replace `module-1` with the branch for the module you want to practice.
 
 For example:
 
 ```bash
-git clone -b modulo-3 https://github.com/CristianSifuentes/NETFundamentals_.git
+git clone -b module-3 https://github.com/CristianSifuentes/inventory-app-releases.git
 ```
 
 This downloads the repository using the Module 3 version of the project.
@@ -4913,13 +4913,13 @@ This downloads the repository using the Module 3 version of the project.
 If you already cloned the repository, move into the project folder and switch branches:
 
 ```bash
-git checkout modulo-1
+git checkout module-1
 ```
 
-Replace `modulo-1` with any available module branch:
+Replace `module-1` with any available module branch:
 
 ```bash
-git checkout modulo-5
+git checkout module-5
 ```
 
 This changes your working copy to the selected module version.
@@ -4929,7 +4929,7 @@ This changes your working copy to the selected module version.
 To see what changed between two modules, use `git diff`:
 
 ```bash
-git diff modulo-1..modulo-2
+git diff module-1..module-2
 ```
 
 This shows all changes introduced between Module 1 and Module 2.
@@ -4937,8 +4937,8 @@ This shows all changes introduced between Module 1 and Module 2.
 You can compare any two module branches:
 
 ```bash
-git diff modulo-2..modulo-3
-git diff modulo-4..modulo-5
+git diff module-2..module-3
+git diff module-4..module-5
 ```
 
 This is useful when you want to understand how a feature was added, how code was refactored, or how the final version differs from earlier course stages.
@@ -4948,13 +4948,13 @@ This is useful when you want to understand how a feature was added, how code was
 You can also compare branches directly on GitHub:
 
 ```text
-https://github.com/MancoMartinez/inventario-app-releases/compare/modulo-1...modulo-2
+https://github.com/CristianSifuentes/inventory-app-releases/compare/module-1...module-2
 ```
 
 Change the branch names in the URL to compare different modules:
 
 ```text
-https://github.com/MancoMartinez/inventario-app-releases/compare/modulo-2...modulo-3
+https://github.com/CristianSifuentes/inventory-app-releases/compare/module-2...module-3
 ```
 
 GitHub comparisons are helpful when you want a visual view of changed files, added lines, removed lines, and commits between two module versions.
