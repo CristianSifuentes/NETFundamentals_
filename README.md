@@ -27,7 +27,7 @@
 | 19 | [JSON serialization in .NET: saving and restoring objects](#19-json-serialization-in-net-saving-and-restoring-objects) | `System.Text.Json`, serialization, deserialization, JSON options, enum converters, backups, and persistence | Available |
 | 20 | [LINQ and `StringBuilder`: inventory reports in C#](#20-linq-and-stringbuilder-inventory-reports-in-c) | Reporting, `StringBuilder`, LINQ summaries, low-stock alerts, rankings, CSV export, and JSON export | Available |
 | 21 | [Facade and complete menu in C# with JSON persistence](#21-facade-and-complete-menu-in-c-with-json-persistence) | Facade pattern, `InventoryService`, CRUD, repository orchestration, reports, JSON persistence, and interactive menu | Available |
-| 22 | To be defined | Microsoft and .NET best practices | Coming soon |
+| 22 | [Inventory App release repository and module branches](#22-inventory-app-release-repository-and-module-branches) | Release repository, module branches, cloning, checkout, Git diff, and GitHub comparison links | Available |
 | 23 | To be defined | Basic security and secret management | Coming soon |
 | 24 | To be defined | Persistence and data access | Coming soon |
 | 25 | To be defined | Refactoring and maintainability | Coming soon |
@@ -4853,6 +4853,140 @@ This is a professional and extensible shape for a console application.
 | `Enum.TryParse` | A safe way to convert text into an enum value. |
 | Backup | A copy created before overwriting persistent data. |
 | Single entry point | One class or method used to access a set of related operations. |
+
+## 22. Inventory App release repository and module branches
+
+The **InventarioApp** source code is available in a dedicated release repository organized by course module. Each module has its own branch, which makes it easier to download a specific version of the project, compare progress between lessons, and review how the application evolves over time.
+
+### Summary
+
+The release repository works as a versioned companion to the course:
+
+- Each module is represented by a Git branch.
+- Students can clone only the branch they need.
+- Students who already cloned the repository can switch between modules with `git checkout`.
+- Git can compare two module branches locally.
+- GitHub can show the same comparison visually in the browser.
+
+Repository:
+
+```text
+https://github.com/MancoMartinez/inventario-app-releases
+```
+
+### Repository structure
+
+Each course module has its own branch:
+
+| Branch | Module | Description |
+|---|---|---|
+| `modulo-1` | Module 1 | Initial fundamentals. |
+| `modulo-2` | Module 2 | Project evolution. |
+| `modulo-3` | Module 3 | New features. |
+| `modulo-4` | Module 4 | Advanced characteristics. |
+| `modulo-5` | Module 5 | Final project version. |
+
+This structure lets you work with the exact project state that matches the lesson you are studying.
+
+### How to download a specific module
+
+#### Option 1: Clone a specific branch
+
+Use `git clone -b` when you want to download one module directly:
+
+```bash
+git clone -b modulo-1 https://github.com/CristianSifuentes/NETFundamentals_.git
+```
+
+Replace `modulo-1` with the branch for the module you want to practice.
+
+For example:
+
+```bash
+git clone -b modulo-3 https://github.com/CristianSifuentes/NETFundamentals_.git
+```
+
+This downloads the repository using the Module 3 version of the project.
+
+#### Option 2: Switch modules after cloning the repository
+
+If you already cloned the repository, move into the project folder and switch branches:
+
+```bash
+git checkout modulo-1
+```
+
+Replace `modulo-1` with any available module branch:
+
+```bash
+git checkout modulo-5
+```
+
+This changes your working copy to the selected module version.
+
+### How to compare modules
+
+To see what changed between two modules, use `git diff`:
+
+```bash
+git diff modulo-1..modulo-2
+```
+
+This shows all changes introduced between Module 1 and Module 2.
+
+You can compare any two module branches:
+
+```bash
+git diff modulo-2..modulo-3
+git diff modulo-4..modulo-5
+```
+
+This is useful when you want to understand how a feature was added, how code was refactored, or how the final version differs from earlier course stages.
+
+### Compare modules on GitHub
+
+You can also compare branches directly on GitHub:
+
+```text
+https://github.com/MancoMartinez/inventario-app-releases/compare/modulo-1...modulo-2
+```
+
+Change the branch names in the URL to compare different modules:
+
+```text
+https://github.com/MancoMartinez/inventario-app-releases/compare/modulo-2...modulo-3
+```
+
+GitHub comparisons are helpful when you want a visual view of changed files, added lines, removed lines, and commits between two module versions.
+
+### Recommended workflow
+
+1. Choose the module you want to study.
+2. Clone that module branch or switch to it with `git checkout`.
+3. Run the project locally with `dotnet run`.
+4. Review the code that belongs to that module.
+5. Compare it with the next module when you want to understand the evolution of the application.
+
+### Key ideas
+
+- The InventarioApp release repository is organized by module branches.
+- `git clone -b` downloads a specific module version directly.
+- `git checkout` switches between modules after cloning.
+- `git diff` compares the code between module branches.
+- GitHub compare links provide a browser-based view of changes.
+- Module branches make it easier to study the project step by step.
+
+### Essential vocabulary
+
+| Concept | Meaning |
+|---|---|
+| Release repository | A repository used to publish stable course versions of the project. |
+| Branch | A named version of the repository history. |
+| Module branch | A branch that contains the project state for one course module. |
+| `git clone -b` | A command that clones a repository using a specific branch. |
+| `git checkout` | A command used to switch branches in an existing repository. |
+| `git diff` | A command that shows differences between files, commits, or branches. |
+| GitHub compare | A GitHub page that shows differences between two branches or commits. |
 
 ## Repository Goal
 
